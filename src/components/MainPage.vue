@@ -15,12 +15,25 @@ const isRedacting = ref(false)
 const activePiiTypes = ref<PIIType[]>([])
 const customPiiText = ref('')
 const redactionRegions = ref<DetectedRegion[]>([])
+const selectedRedactionColor = ref('#000000')
+const effectiveImageUrl = ref<string | null>(null)
 
-const handleVerificationConfirm = (data: { words: SpatialWord[], piiTypes: PIIType[], customText: string, regions: DetectedRegion[] }) => {
+const handleVerificationConfirm = (data: {
+  words: SpatialWord[];
+  piiTypes: PIIType[];
+  customText: string;
+  regions: DetectedRegion[];
+  redactionColor?: string;
+  rotatedImageUrl?: string;
+}) => {
   result.value = data.words
   activePiiTypes.value = data.piiTypes
   customPiiText.value = data.customText
   redactionRegions.value = data.regions
+  selectedRedactionColor.value = data.redactionColor || '#000000'
+  if (data.rotatedImageUrl) {
+    effectiveImageUrl.value = data.rotatedImageUrl
+  }
   isVerified.value = true
 }
 
@@ -30,6 +43,8 @@ const handleVerificationCancel = () => {
   fileUrl.value = null
   isVerified.value = false
   redactionRegions.value = []
+  selectedRedactionColor.value = '#000000'
+  effectiveImageUrl.value = null
 }
 
 const handleRedactAndDownload = async () => {
@@ -37,11 +52,34 @@ const handleRedactAndDownload = async () => {
   
   isRedacting.value = true
   try {
+    let targetSource: File | Blob = file.value
+
+    // If image was rotated, convert the rotated data URL to Blob
+    if (effectiveImageUrl.value && effectiveImageUrl.value.startsWith('data:')) {
+      const res = await fetch(effectiveImageUrl.value)
+      targetSource = await res.blob()
+    }
+
     let redactedBlob: Blob
     if (file.value.type === 'application/pdf') {
-      redactedBlob = await redactPdf(file.value, result.value, activePiiTypes.value, documentType.value, customPiiText.value, redactionRegions.value)
+      redactedBlob = await redactPdf(
+        targetSource,
+        result.value,
+        activePiiTypes.value,
+        documentType.value,
+        customPiiText.value,
+        redactionRegions.value,
+        selectedRedactionColor.value
+      )
     } else {
-      redactedBlob = await redactImage(file.value, result.value, activePiiTypes.value, customPiiText.value, redactionRegions.value)
+      redactedBlob = await redactImage(
+        targetSource,
+        result.value,
+        activePiiTypes.value,
+        customPiiText.value,
+        redactionRegions.value,
+        selectedRedactionColor.value
+      )
     }
 
     const url = URL.createObjectURL(redactedBlob)
@@ -60,7 +98,6 @@ const handleRedactAndDownload = async () => {
   }
 }
 
-
 const dropZoneRef = ref<HTMLDivElement>()
 const fileInput = ref<HTMLInputElement>()
 
@@ -68,6 +105,7 @@ const onDrop = (files: File[] | null) => {
   if (files && files.length > 0) {
     const droppedFile = files[0]
     if (droppedFile && (droppedFile.type.startsWith('image/') || droppedFile.type === 'application/pdf')) {
+      effectiveImageUrl.value = null
       handleFileUpload(droppedFile)
     } else {
       alert('Please upload an image or PDF file.')
@@ -83,16 +121,19 @@ const onFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     const file = target.files[0]
-    if (file) handleFileUpload(file)
+    if (file) {
+      effectiveImageUrl.value = null
+      handleFileUpload(file)
+    }
   }
 }
 </script>
 
 <template>
   <div class="container mx-auto px-4 py-12 flex flex-col min-h-screen relative">
-    <!-- Document Verification Modal -->
+    <!-- Document Verification Fullscreen Overlay -->
     <DocumentVerification
-      v-if="(result.length > 0 || detectedRegions.length > 0) && !isVerified && fileUrl"
+      v-if="!isProcessing && !isVerified && fileUrl && (result.length > 0 || detectedRegions.length > 0 || file)"
       :image-url="fileUrl"
       :words="result"
       :document-type="documentType"

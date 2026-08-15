@@ -1,0 +1,94 @@
+Kategori,Kata_Kunci_Indonesia,Kata_Kunci_Inggris
+Identitas Pribadi,Nama,Name
+Identitas Pribadi,Nama Lengkap,Full Name
+Identitas Pribadi,Nama Depan,First Name
+Identitas Pribadi,Nama Belakang,Last Name
+Identitas Pribadi,Nama Keluarga,Surname / Family Name
+Identitas Pribadi,Nama Diberikan,Given Names / Given Name / Gvennames / Givenname
+Identitas Pribadi,Nama Ibu Kandung,Mother's Maiden Name
+Identitas Pribadi,NIK,National ID
+Identitas Pribadi,Nomor Induk Kependudukan,Social Security Number / SSN
+Identitas Pribadi,Nomor KTP,ID Number / ID No / IDn / Card No
+Identitas Pribadi,Nomor Dokumen,Document Number / Doc Number / Number / No.
+Identitas Pribadi,No. KK,Family Card Number
+Identitas Pribadi,Kartu Keluarga,Family Register
+Identitas Pribadi,Nomor Paspor,Passport Number / Passport No
+Identitas Pribadi,No. SIM,Driver License Number / Driving License / DL / DLN
+Identitas Pribadi,Surat Izin Mengemudi,Driver License
+Identitas Pribadi,No. BPJS,Health Insurance Number
+Identitas Pribadi,BPJS Kesehatan,National Health Insurance
+Identitas Pribadi,BPJS Ketenagakerjaan,Social Security Employment
+Identitas Pribadi,Tempat Lahir,Place of Birth / POB
+Identitas Pribadi,Tanggal Lahir,Date of Birth / DOB / Birth Date
+Identitas Pribadi,Tempat/Tgl Lahir,Place/Date of Birth
+Identitas Pribadi,Tgl Lahir,Birth Date
+Identitas Pribadi,TTL,DOB
+Identitas Pribadi,Tanggal Penerbitan,Date of Issue / Issue Date / Issued
+Identitas Pribadi,Tanggal Kedaluwarsa,Date of Expiry / Expiry Date / Expires / Exp
+Identitas Pribadi,Pembeda Dokumen,Document Discriminator / DD
+Identitas Pribadi,Usia / Umur,Age
+Identitas Pribadi,Berlaku Hingga,Valid Until / Expiry Date
+Identitas Pribadi,Masa Berlaku,Validity Period
+Kontak & Lokasi,Alamat,Address / Addr
+Kontak & Lokasi,Alamat Domisili,Residential Address
+Kontak & Lokasi,Jalan,Street / St
+Kontak & Lokasi,Avenue,Avenue / Ave
+Kontak & Lokasi,Road,Road / Rd
+Kontak & Lokasi,Drive,Drive / Dr
+Kontak & Lokasi,Lane,Lane / Ln
+Kontak & Lokasi,Boulevard,Boulevard / Blvd
+Kontak & Lokasi,RT/RW,Neighborhood Unit
+Kontak & Lokasi,Kel/Desa,Subdistrict / Village
+Kontak & Lokasi,Kelurahan,Subdistrict
+Kontak & Lokasi,Desa,Village
+Kontak & Lokasi,Kecamatan,District
+Kontak & Lokasi,Kabupaten,Regency
+Kontak & Lokasi,Kode Pos,Zip Code / Postal Code / ZIP
+Kontak & Lokasi,Kota,City
+Kontak & Lokasi,Provinsi,State / Province
+Kontak & Lokasi,No. Telepon,Phone Number / Phone / Tel
+Kontak & Lokasi,No. HP,Mobile Number / Cellphone / Mobile
+Kontak & Lokasi,Email / Surel,Email Address / Email
+Kontak & Lokasi,Koordinat GPS,GPS Coordinates
+Kredensial,Password,Password
+Kredensial,Kata Sandi,Passcode
+Kredensial,Passphrase,Passphrase
+Kredensial,PIN,PIN (Personal Identification Number)
+Kredensial,Kode OTP,OTP (One Time Password)
+Kredensial,API Key,API Key
+Kredensial,Secret Key,Secret Key
+Kredensial,Access Token,Access Token
+Kredensial,Pertanyaan Keamanan,Security Question
+Kredensial,Jawaban Keamanan,Security Answer
+Kredensial,Sidik Jari,Fingerprint
+Kredensial,Tanda Tangan,Signature / Sign / Scguature
+Kredensial,Pengenalan Wajah,Face ID
+Kredensial,Token Rahasia,Secret Token
+Kredensial,Kunci Privat,Private Key
+Keuangan,Nomor Rekening,Bank Account Number
+Keuangan,No. Rekening,Account Number / Account No / Acc No
+Keuangan,No. Rek,Account No
+Keuangan,Nomor Kartu Kredit,Credit Card Number
+Keuangan,Nomor Kartu Debit,Debit Card Number
+Keuangan,CVV / CVC,CVV / CVC Code
+Keuangan,NPWP,Tax ID / TIN
+Keuangan,Nomor Pokok Wajib Pajak,Taxpayer Identification Number
+Keuangan,SWIFT Code,SWIFT / BIC Code
+Keuangan,IBAN,IBAN Number
+Keuangan,Kode Bank,Bank Code
+Keuangan,Gaji / Upah,Salary / Wage
+Keuangan,Pendapatan,Income
+Keuangan,Riwayat Transaksi,Transaction History
+Kesehatan & Demografi,Rekam Medis,Medical Record
+Kesehatan & Demografi,Riwayat Penyakit,Health History
+Kesehatan & Demografi,Golongan Darah,Blood Type / Blood Group
+Kesehatan & Demografi,Gol. Darah,Blood Group / Blood
+Kesehatan & Demografi,Asuransi Kesehatan,Health Insurance
+Kesehatan & Demografi,Agama,Religion
+Kesehatan & Demografi,Kepercayaan,Belief
+Kesehatan & Demografi,Jenis Kelamin,Gender / Sex
+Kesehatan & Demografi,Status Perkawinan,Marital Status
+Kesehatan & Demografi,Status Pernikahan,Marital Status
+Kesehatan & Demografi,Pekerjaan,Occupation / Profession
+Kesehatan & Demografi,Kewarganegaraan,Citizenship / Nationality
+Kesehatan & Demografi,Ras / Etnis,Race / Ethnicity

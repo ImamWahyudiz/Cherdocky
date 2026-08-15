@@ -1,14 +1,10 @@
 import { ref } from 'vue';
 import { processDocument, type SpatialWord } from '~/utils/ocrEngine';
 import { extractPdfText, isPdfTextBased, rasterizePdfPage } from '~/utils/pdfExtractor';
-import { detectFaces, type DetectedRegion } from '~/utils/faceDetector';
+import type { DetectedRegion } from '~/utils/faceDetector';
 
 export type DocumentType = 'image' | 'text-pdf' | 'image-pdf';
 
-/**
- * Render scale used when rasterizing PDF pages for OCR and face detection.
- * Must stay in sync with PDF_RENDER_SCALE in redactor.ts.
- */
 const RASTER_SCALE = 2;
 
 export const useDocumentIngestion = () => {
@@ -33,15 +29,7 @@ export const useDocumentIngestion = () => {
     try {
       let spatialData: SpatialWord[] = [];
 
-      // Track the image source for face detection and its coordinate divisor.
-      // Face detection always runs on a rasterized image whose pixel coords
-      // may differ from the word coordinate space. The divisor normalizes
-      // detected face coords to match word coords.
-      let faceSource: Blob | File = uploadedFile;
-      let faceCoordDivisor = 1;
-
       if (uploadedFile.type === 'application/pdf') {
-        // Detect if the PDF is text-based or image-based (scanned)
         const isTextBased = await isPdfTextBased(uploadedFile);
 
         if (isTextBased) {
@@ -50,41 +38,28 @@ export const useDocumentIngestion = () => {
             progress.value = p;
           });
 
-          // Rasterize page 1 at scale 1 for preview & face detection so coordinates
-          // align 1:1 with extractPdfText words (which are at scale 1).
+          // Rasterize page 1 at scale 1 for preview image
           const rasterBlob = await rasterizePdfPage(uploadedFile, 1, 1);
           
           if (fileUrl.value) URL.revokeObjectURL(fileUrl.value);
           fileUrl.value = URL.createObjectURL(rasterBlob);
-
-          faceSource = rasterBlob;
-          faceCoordDivisor = 1;
         } else {
           // Image-based PDF: rasterize to image, then OCR
           documentType.value = 'image-pdf';
           const imageBlob = await rasterizePdfPage(uploadedFile, 1, RASTER_SCALE);
           
-          // Replace fileUrl with the rasterized image so the preview shows the rendered page
           if (fileUrl.value) URL.revokeObjectURL(fileUrl.value);
           fileUrl.value = URL.createObjectURL(imageBlob);
 
           spatialData = await processDocument(imageBlob, (p) => {
             progress.value = p;
           });
-
-          // Word coords and raster are both at RASTER_SCALE — no divisor needed
-          faceSource = imageBlob;
-          faceCoordDivisor = 1;
         }
       } else {
         documentType.value = 'image';
         spatialData = await processDocument(uploadedFile, (p) => {
           progress.value = p;
         });
-
-        // Both words and face detection operate on the native image — no scaling
-        faceSource = uploadedFile;
-        faceCoordDivisor = 1;
       }
 
       result.value = spatialData;
@@ -94,19 +69,6 @@ export const useDocumentIngestion = () => {
         console.warn('No text could be extracted from this document.');
       } else {
         console.log(`Extracted ${spatialData.length} words.`);
-      }
-
-      // --- Face detection (runs after OCR to avoid competing for GPU/WASM) ---
-      const rawFaces = await detectFaces(faceSource);
-      if (rawFaces.length > 0) {
-        // Normalize detected face coordinates to match word coordinate space
-        detectedRegions.value = rawFaces.map((f) => ({
-          x: f.x / faceCoordDivisor,
-          y: f.y / faceCoordDivisor,
-          w: f.w / faceCoordDivisor,
-          h: f.h / faceCoordDivisor,
-        }));
-        console.log(`Detected ${rawFaces.length} face(s).`);
       }
     } catch (error: any) {
       console.error('OCR Error:', error);
