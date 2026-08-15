@@ -1,27 +1,44 @@
-# Nuxt dev/build outputs
-.output
-.data
-.nuxt
-.nitro
-.cache
-dist
-
-# Node dependencies
-node_modules
-
 # Logs
 logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Misc
-.DS_Store
-.fleet
+# Node dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
 .idea
+.fleet
+.history
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
 
-# Local env files
+# Environment variables
 .env
 .env.*
 !.env.example
 
-# VSC
-.history
+# TypeScript build info
+*.tsbuildinfo
+.data
+.nuxt
+.nitro
+.cache
+.output
+
+# Antigravity / AI IDE artifacts
+.agents

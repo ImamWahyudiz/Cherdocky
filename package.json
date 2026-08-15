@@ -1,35 +1,32 @@
 {
-  "name": "nuxt-ui-template-saas",
+  "name": "cherdocky-vite",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare",
-    "lint": "eslint .",
-    "typecheck": "nuxt typecheck"
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@iconify-json/lucide": "^1.2.122",
-    "@iconify-json/simple-icons": "^1.2.93",
-    "@nuxt/content": "^3.15.2",
-    "@nuxt/image": "^2.1.0",
-    "@nuxt/ui": "^4.10.0",
-    "@standard-schema/spec": "^1.1.0",
-    "@takumi-rs/core": "^1.8.7",
-    "@vueuse/nuxt": "^14.4.0",
-    "nuxt": "^4.5.1",
-    "nuxt-og-image": "^6.7.6",
-    "tailwindcss": "^4.3.3",
-    "tesseract.js": "^7.0.0",
-    "zod": "^4.4.3"
+    "@mediapipe/tasks-vision": "^0.10.22",
+    "@vueuse/core": "^10.9.0",
+    "lucide-vue-next": "^0.368.0",
+    "jspdf": "^2.5.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.0.379",
+    "scribe.js-ocr": "^0.14.5",
+    "tesseract.js": "^5.0.5",
+    "vue": "^3.4.21"
   },
   "devDependencies": {
-    "@nuxt/eslint": "^1.17.0",
-    "eslint": "^10.8.1",
-    "typescript": "^6.0.3",
-    "vue-tsc": "^3.3.9"
-  },
-  "packageManager": "pnpm@11.20.0"
+    "@types/node": "^26.2.0",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0",
+    "vue-tsc": "^2.0.6"
+  }
 }
