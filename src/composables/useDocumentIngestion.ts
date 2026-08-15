@@ -50,12 +50,15 @@ export const useDocumentIngestion = () => {
             progress.value = p;
           });
 
-          // Rasterize for face detection — word coords are at scale=1
-          // (native PDF units), but the raster will be at RASTER_SCALE.
-          // Divide detected coords by RASTER_SCALE to align.
-          const rasterBlob = await rasterizePdfPage(uploadedFile, 1, RASTER_SCALE);
+          // Rasterize page 1 at scale 1 for preview & face detection so coordinates
+          // align 1:1 with extractPdfText words (which are at scale 1).
+          const rasterBlob = await rasterizePdfPage(uploadedFile, 1, 1);
+          
+          if (fileUrl.value) URL.revokeObjectURL(fileUrl.value);
+          fileUrl.value = URL.createObjectURL(rasterBlob);
+
           faceSource = rasterBlob;
-          faceCoordDivisor = RASTER_SCALE;
+          faceCoordDivisor = 1;
         } else {
           // Image-based PDF: rasterize to image, then OCR
           documentType.value = 'image-pdf';

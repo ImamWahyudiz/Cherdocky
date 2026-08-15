@@ -177,6 +177,10 @@ export async function redactPdf(
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error(`Could not get 2d context for page ${pageNum}`);
 
+    // Fill solid white background so transparent PDFs don't export with dark/transparent canvas
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     await page.render({ canvasContext: ctx, viewport }).promise;
 
     // --- Step B: Pixel overwrite — destroy PII content ---

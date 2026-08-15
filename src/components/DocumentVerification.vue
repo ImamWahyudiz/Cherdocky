@@ -11,7 +11,7 @@
       
       <div class="flex-1 flex overflow-hidden bg-gray-100 dark:bg-gray-950">
         <!-- Main content: image with overlays -->
-        <div ref="scrollContainer" class="flex-1 overflow-auto p-4 relative bg-gray-100 dark:bg-gray-950" @wheel.prevent="onWheel">
+        <div ref="scrollContainer" class="flex-1 overflow-auto p-4 relative bg-gray-100 dark:bg-gray-950" @wheel="onWheel">
           <!-- Container for image and overlays -->
           <div
             ref="imageContainer"
@@ -21,7 +21,7 @@
             @mousemove.prevent="onMouseMove"
             @mouseup.prevent="onMouseUp"
           >
-            <img ref="docImage" :src="imageUrl" @load="onImageLoad" class="max-w-none shadow-md pointer-events-none" />
+            <img ref="docImage" :src="imageUrl" @load="onImageLoad" class="max-w-none shadow-md pointer-events-none bg-white" />
             
             <template v-if="imageLoaded">
               <!-- Existing word bounding boxes -->
@@ -174,8 +174,14 @@
         </div>
       </div>
       
-      <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-lg text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
-        <span>{{ dragMode === 'block' ? 'Click region to unblock. Drag to block a shape or image.' : 'Click to redact. Drag to re-scan a missed area.' }}</span>
+      <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-lg text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          <span class="font-medium text-gray-800 dark:text-gray-200">
+            {{ dragMode === 'block' ? '🚫 Click region to unblock. Drag to block image/shape.' : '🔍 Click to redact. Drag to re-scan missed area/image.' }}
+          </span>
+          <span class="hidden sm:inline text-gray-400 dark:text-gray-500">•</span>
+          <span class="text-gray-500 dark:text-gray-400">Scroll: Pan · Shift+Scroll: Horizontal · Ctrl+Scroll: Zoom</span>
+        </div>
         <div class="flex items-center gap-2">
           <button @click="zoomOut" class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 text-xs font-bold transition-colors">−</button>
           <span class="text-xs font-mono w-12 text-center">{{ Math.round(zoomLevel * 100) }}%</span>
@@ -294,9 +300,15 @@ function getRelativeCoords(e: MouseEvent): { x: number; y: number } {
 }
 
 function onWheel(e: WheelEvent) {
-  // Scroll wheel zooms the image
-  const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-  zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomLevel.value + delta));
+  // Ctrl / Cmd + Scroll: Zoom in / Zoom out
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomLevel.value + delta));
+    return;
+  }
+
+  // Normal scroll & Shift + scroll pan the container natively
 }
 
 function zoomIn() {
@@ -419,15 +431,7 @@ async function onMouseUp(e: MouseEvent) {
     return;
   }
 
-  // --- Re-scan mode (existing behavior) ---
-
-  // Text-based PDFs: native text layer already captured everything
-  if (props.documentType === 'text-pdf') {
-    showStatus('Text-based PDF — all text already extracted natively.', 'info');
-    return;
-  }
-
-  // Smart skip: check if the region is already well-covered by existing words
+  // --- Re-scan mode: scan region with OCR (works for images, scans, and hybrid PDFs) ---
   if (isRegionAlreadyCovered(rect)) {
     showStatus('Area already scanned — no new text expected.', 'info');
     return;
