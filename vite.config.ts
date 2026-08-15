@@ -10,5 +10,6 @@ export default defineConfig({
       '~': path.resolve(__dirname, './src')
     }
   },
-  base: './' // ensures assets load correctly on Github pages
+  // Set base path for GitHub Pages (https://<username>.github.io/Cherdocky/)
+  base: process.env.NODE_ENV === 'production' ? '/Cherdocky/' : '/'
 })
