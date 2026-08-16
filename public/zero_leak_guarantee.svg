@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 230" width="100%" height="100%" style="background:#0f172a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; border-radius:12px;">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Container -->
+  <rect x="15" y="15" width="770" height="200" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <rect x="15" y="15" width="770" height="38" rx="8" fill="#0f172a"/>
+  
+  <text x="35" y="40" fill="#38bdf8" font-size="13" font-weight="700" letter-spacing="1">CHERDOCKY ZERO-LEAK GUARANTEE PRINCIPLES</text>
+  
+  <!-- Points -->
+  <g transform="translate(35, 70)">
+    <!-- Point 1 -->
+    <circle cx="6" cy="6" r="4" fill="#10b981"/>
+    <text x="22" y="10" fill="#f8fafc" font-size="13" font-weight="600">Zero Cloud Transmission</text>
+    <text x="200" y="10" fill="#94a3b8" font-size="12.5">: Dokumen tidak pernah dikirim ke server/API eksternal manapun.</text>
+
+    <!-- Point 2 -->
+    <circle cx="6" cy="34" r="4" fill="#10b981"/>
+    <text x="22" y="38" fill="#f8fafc" font-size="13" font-weight="600">Zero Text Ghost Layer</text>
+    <text x="200" y="38" fill="#94a3b8" font-size="12.5">: PDF hasil sensor bebas dari layer teks vektor yang dapat diekstrak.</text>
+
+    <!-- Point 3 -->
+    <circle cx="6" cy="62" r="4" fill="#10b981"/>
+    <text x="22" y="66" fill="#f8fafc" font-size="13" font-weight="600">Destructive Memory Wipe</text>
+    <text x="200" y="66" fill="#94a3b8" font-size="12.5">: Redaksi menimpa nilai warna pixel asli di memori RAM secara permanen.</text>
+
+    <!-- Point 4 -->
+    <circle cx="6" cy="90" r="4" fill="#10b981"/>
+    <text x="22" y="94" fill="#f8fafc" font-size="13" font-weight="600">Metadata Stripping</text>
+    <text x="200" y="94" fill="#94a3b8" font-size="12.5">: Koordinat GPS, tipe perangkat, dan tag EXIF dibersihkan otomatis.</text>
+
+    <!-- Point 5 -->
+    <circle cx="6" cy="118" r="4" fill="#10b981"/>
+    <text x="22" y="122" fill="#f8fafc" font-size="13" font-weight="600">Fully Open Source</text>
+    <text x="200" y="122" fill="#94a3b8" font-size="12.5">: Seluruh kode sumber terbuka dan dapat diaudit secara transparan.</text>
+  </g>
+</svg>

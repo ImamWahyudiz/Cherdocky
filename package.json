@@ -11,11 +11,10 @@
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.22",
     "@vueuse/core": "^10.9.0",
-    "lucide-vue-next": "^0.368.0",
     "jspdf": "^2.5.2",
+    "lucide-vue-next": "^0.368.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.0.379",
-    "scribe.js-ocr": "^0.14.5",
     "tesseract.js": "^5.0.5",
     "vue": "^3.4.21"
   },

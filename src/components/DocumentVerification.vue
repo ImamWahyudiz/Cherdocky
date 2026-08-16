@@ -470,7 +470,7 @@
         <!-- Custom Keyword Input -->
         <div>
           <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-            Kata atau kata kunci:
+            Cari Kata atau kata kunci:
           </label>
           <input
             v-model="customPiiText"

@@ -1,125 +1,175 @@
-# 🛡️ Cherdocky — Offline-First PII Auto-Redactor & Document Processor
+# Cherdocky — Offline-First PII Auto-Redactor & Document Processor
 
-> **Client-Side, Zero-Leak, True Pixel-Level Document Redaction & Spatial OCR**
+<p align="center">
+  <img src="public/favicon.svg" alt="Cherdocky Logo" width="96" height="96" />
+</p>
 
-Cherdocky adalah aplikasi pemroses dokumen berbasis web yang bekerja **100% secara offline di sisi klien (browser)** untuk mendeteksi dan menyensor Informasi Identitas Pribadi (PII - *Personally Identifiable Information*), foto wajah, tanda tangan, dan data sensitif lainnya dari dokumen gambar maupun PDF.
+<p align="center">
+  <strong>Client-Side, Zero-Leak, Pixel-Level Document Redaction & Spatial OCR</strong>
+</p>
+
+<p align="center">
+  <a href="https://imamwahyudiz.github.io/Cherdocky/"><img src="https://img.shields.io/badge/Live_Demo-GitHub_Pages-2563eb?style=flat-square" alt="Live Demo on GitHub Pages" /></a>
+  <img src="https://img.shields.io/badge/Privacy-100%25_Offline-16a34a?style=flat-square" alt="100% Offline" />
+  <img src="https://img.shields.io/badge/Security-Flat_PDF_Output-dc2626?style=flat-square" alt="Flat PDF Output" />
+  <img src="https://img.shields.io/badge/Vue-3.x-42b883?style=flat-square&logo=vue.js" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/License-MIT-gray?style=flat-square" alt="MIT License" />
+</p>
 
 ---
 
-## ⚠️ Masalah Kritis: Mengapa Coretan Editor Bawaan Berbahaya?
+## Akses Langsung (Live Demo)
 
-Banyak orang menyensor KTP, slip gaji, surat berharga, atau foto dokumen menggunakan fitur coret (*markup/pen/draw tool*) pada aplikasi bawaan ponsel (Gallery, Screenshot Editor) atau software pembaca PDF standar. **Metode ini memiliki celah keamanan fatal (*Security Vulnerability*):**
+Aplikasi dapat langsung dicoba melalui peramban web tanpa instalasi:
 
-| Celah Editor Bawaan / PDF Standar | Risiko Keamanan | Solusi Cherdocky |
+👉 **[Cherdocky Web App (GitHub Pages)](https://imamwahyudiz.github.io/Cherdocky/)**
+
+> **Catatan Keamanan**: Seluruh proses pemindaian OCR, deteksi wajah, dan redaksi dokumen dieksekusi secara lokal di peramban web (sisi klien). Dokumen Anda tidak diunggah ke server eksternal.
+
+---
+
+## Daftar Isi
+
+1. [Latar Belakang: Masalah pada Sensor Dokumen Konvensional](#latar-belakang-masalah-pada-sensor-dokumen-konvensional)
+2. [Fitur Utama](#fitur-utama)
+3. [Perbandingan dengan Metode Lain](#perbandingan-dengan-metode-lain)
+4. [Cara Kerja Sistem](#cara-kerja-sistem)
+5. [Dokumentasi Logika & Alur Sistem](#dokumentasi-logika--alur-sistem)
+6. [Teknologi yang Digunakan](#teknologi-yang-digunakan)
+7. [Panduan Penggunaan](#panduan-penggunaan)
+8. [Menjalankan Proyek Secara Lokal](#menjalankan-proyek-secara-lokal)
+9. [Lisensi](#lisensi)
+
+---
+
+## Latar Belakang: Masalah pada Sensor Dokumen Konvensional
+
+Banyak pengguna menyensor dokumen (KTP, slip gaji, rekening, dll.) menggunakan fitur coret bawaan ponsel atau anotasi PDF standar. Metode ini sering kali menyisakan celah:
+
+| Celah pada Metode Biasa | Potensi Masalah | Pendekatan Cherdocky |
 | :--- | :--- | :--- |
-| **1. Text Layer Vektor Tetap Ada**<br>*(Vector Overlay Leak)* | Menaruh kotak hitam di atas teks PDF hanya membuat layer visual baru. Teks asli di baliknya masih ada dan **dapat di-copy-paste, di-search, atau diekstrak** menggunakan script `pdftotext`, Python PDF parser, atau scraper. | **Zero Text Layer (Flat PDF)**: Seluruh halaman PDF di-rasterisasi menjadi pixel datar sebelum diekspor. PDF hasil akhir murni berupa image tanpa text layer yang bisa disalin. |
-| **2. Rekonstruksi Opacity / Exposure**<br>*(Opacity Leak)* | Kuas/spidol pada editor foto bawaan sering memiliki tingkat transparansi (alpha channel). Dengan menaikkan *exposure*, *brightness*, atau *contrast*, **tulisan di balik coretan dapat dibaca kembali dengan mudah**. | **Physical Pixel Overwrite**: Nilai RGB dari pixel target di memori RAM browser diganti secara fisik (`ctx.fillRect`) menjadi hitam pekat (RGB `0,0,0,255`). Data pixel asli dihancurkan secara permanen. |
-| **3. Objek & Layer Terpisah**<br>*(Layer Stripping)* | Pada file PDF atau format gambar tertentu, coretan disimpan sebagai objek anotasi terpisah. Siapapun bisa membuka dokumen tersebut di editor lain lalu **menghapus layer kotak hitam tersebut** untuk melihat isi aslinya. | **Destructive Rasterization**: Tidak ada sistem layer terpisah. Redaksi menyatu secara permanen ke dalam canvas pixel sebelum di-render ulang. |
-| **4. Kebocoran Metadata & EXIF** | Foto dari kamera ponsel menyimpan informasi sensitif seperti koordinat GPS lokasi pengambilan foto, tipe perangkat, dan waktu pengambilan. | **Metadata Stripping**: Konversi canvas ke format baru secara otomatis membersihkan seluruh metadata EXIF dari gambar asli. |
-| **5. Privasi Cloud / Server Leak** | Banyak alat redaksi online mengunggah dokumen Anda ke server pihak ketiga untuk diproses. | **100% Offline-First**: Pemrosesan OCR, deteksi wajah, dan redaksi berjalan sepenuhnya di browser pengguna tanpa lalu lintas jaringan ke server. |
+| **Text Layer PDF Masih Ada**<br>*(Vector Overlay)* | Kotak hitam hanya menutupi visual. Teks asli di baliknya masih dapat disalin atau diekstrak dengan script parser PDF. | **Flat Image PDF**: Dokumen di-rasterisasi menjadi citra datar sehingga tidak menyisakan text layer yang bisa disalin. |
+| **Transparansi Spidol/Kuas**<br>*(Opacity Issue)* | Spidol digital sering memiliki alpha/transparansi. Menaikkan brightness/kontras dapat menampakkan teks di baliknya. | **Pixel Overwrite**: Mengganti nilai RGB pixel pada memori canvas secara penuh dengan warna solid. |
+| **Layer Anotasi Terpisah** | Coretan disimpan sebagai objek terpisah yang dapat dihapus menggunakan editor PDF lain. | **Destructive Rasterization**: Redaksi digabungkan langsung ke dalam pixel canvas sebelum file dibuat ulang. |
+| **Metadata & EXIF** | Foto dokumen dari ponsel dapat memuat info koordinat GPS dan perangkat. | **Metadata Stripping**: Konversi canvas ke format baru secara otomatis membersihkan metadata EXIF. |
+| **Privasi Cloud** | Alat sensor online umumnya mengunggah file pengguna ke server pihak ketiga. | **100% Offline-First**: Pemrosesan OCR dan deteksi berjalan di perangkat lokal pengguna. |
 
 ---
 
-## 🔬 Bagaimana Cherdocky Bekerja (True Pixel-Level Redaction)
+## Fitur Utama
 
-Cherdocky menerapkan pipeline **Rasterization & Pixel Destruction** 3 tahap yang ketat:
-
-```
-[ Upload File (PDF / Gambar) ]
-             │
-             ▼
-   [ Tahap A: Rasterisasi ]
-   (pdfjs-dist / HTML5 Image ──> Off-Screen HTML5 Canvas)
-   Mengubah seluruh halaman dokumen menjadi matriks pixel datar murni.
-             │
-             ▼
-   [ Tahap B: Penimpaan Pixel (Pixel Overwrite) ]
-   (Tesseract OCR + MediaPipe AI Face Detection + Koordinat Manual)
-   Menjalankan ctx.fillRect() langsung ke buffer memori pixel canvas.
-   Data asli dihancurkan secara permanen di RAM.
-             │
-             ▼
-   [ Tahap C: Rekonstruksi & Re-Export ]
-   (jsPDF / Canvas Blob)
-   Membungkus canvas hasil redaksi menjadi PDF berbasis gambar datar
-   tanpa layer teks sama sekali atau mengunduhnya sebagai gambar bersih.
-```
-
----
-
-## ✨ Fitur Utama
-
-- 🔒 **100% Offline-First & Private**: Dokumen Anda tidak pernah meninggalkan perangkat. Tidak ada API eksternal yang menerima isi dokumen Anda.
-- 📑 **Dukungan Multi-Format**:
-  - **Gambar**: JPEG, PNG, WebP (termasuk foto KTP, SIM, paspor, struk, dokumen scan).
-  - **PDF Berbasis Teks**: Ekstraksi spasial langsung dengan konversi akhir anti-bocor.
-  - **PDF Hasil Scan**: Rasterisasi otomatis halaman dan analisis OCR mendalam.
-- 🤖 **Deteksi Otomatis PII (Spatial Regex)**:
-  - 🆔 **NIK** (Nomor Induk Kependudukan 16 digit)
-  - 📱 **Nomor Telepon** (Format Indonesia & Internasional)
-  - 📧 **Alamat Email**
-  - 🛂 **Nomor Paspor / ID**
-  - 💳 **Nomor Rekening Bank**
-  - 🔑 **Kata Sandi / PIN**
-  - ✏️ **Custom Keyword** (Ketik kata tertentu yang ingin disensor otomatis)
-- 👤 **Deteksi Otomatis Wajah & Foto Profil (On-Device AI)**:
-  - Menggunakan model **MediaPipe BlazeFace** yang berjalan di browser via WebAssembly & WebGL.
-  - Mendeteksi wajah pada foto dokumen (seperti foto pada KTP/Paspor/ID Card) dan menandainya otomatis untuk disensor.
-- 🎨 **Verifikasi Interaktif & Manual Blocking**:
-  - **Mode 🔍 Re-scan**: Drag area yang buram/tidak terbaca untuk menjalankan OCR ulang dengan kontras yang ditingkatkan.
-  - **Mode 🚫 Block**: Drag area berbentuk bebas untuk menyensor foto, wajah yang luput, logo instansi, tanda tangan, atau cap/stempel.
-  - **Click-to-Toggle**: Klik pada kata atau area sensor untuk mengaktifkan/menonaktifkan redaksi.
-  - **Zoom & Pan**: Kontrol zoom presisi untuk memeriksa dokumen detail sebelum diekspor.
+- **Pemrosesan di Sisi Klien**: Seluruh alur kerja berjalan di browser pengguna tanpa lalu lintas dokumen ke server luar.
+- **Dukungan Format Dokumen**:
+  - **Gambar**: JPEG, PNG, WebP (termasuk unggah beberapa file sekaligus / batch).
+  - **PDF Digital (Text-Based)**: Ekstraksi posisi teks cepat dari matriks dokumen.
+  - **PDF Hasil Scan**: Rasterisasi halaman dokumen dan analisis OCR per halaman.
+- **Deteksi Data Sensitif (PII)**:
+  - NIK (16 digit dengan normalisasi karakter angka OCR).
+  - Nomor Telepon (format seluler Indonesia, internasional, dan telepon rumah).
+  - Alamat Email.
+  - Tanggal Lahir (DOB) & Tempat Tanggal Lahir (TTL).
+  - NPWP dan Nomor BPJS / KIS.
+  - Nomor Rekening Bank dan Nomor Paspor / SIM / ID.
+  - Deteksi berbasis kedekatan label (*contextual proximity*) untuk kata di samping atau di bawah label sensitif.
+  - Pencarian kata kunci kustom (*Custom Keyword Search*).
+- **Deteksi Wajah On-Device**:
+  - Menggunakan model MediaPipe BlazeFace berbasis WebAssembly untuk mendeteksi foto wajah pada kartu identitas.
+- **Alat Verifikasi & Koreksi Manual**:
+  - **Click-to-Toggle**: Klik kotak teks atau wajah untuk mengaktifkan atau membatalkan sensor.
+  - **Mode Blok Manual**: Drag area bebas untuk menyensor tanda tangan, cap stempel, atau logo.
+  - **Mode Scan Area**: Drag area tertentu yang buram untuk OCR ulang dengan penyesuaian kontras.
+  - **Rotasi Dokumen**: Putar halaman 90° dengan pembaruan posisi koordinat bounding box secara sinkron.
+  - **Zoom & Pas Layar**: Kontrol pembesaran dokumen dan navigasi antar halaman.
+- **Pilihan Ekspor**:
+  - Ekspor ke Flat PDF (dokumen berbasis citra murni).
+  - Ekspor ke format gambar (PNG / JPEG) atau arsip ZIP untuk dokumen multi-halaman.
 
 ---
 
-## 🛠️ Arsitektur & Teknologi
+## Perbandingan dengan Metode Lain
 
-- **Frontend Framework**: [Vue 3](https://vuejs.org/) (Composition API, `<script setup>`, TypeScript)
-- **Build Tool**: [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) & [Lucide Icons](https://lucide.dev/)
-- **OCR Engine**: [Tesseract.js](https://github.com/naptha/tesseract.js) (Spatial word-level bounding box mapping)
-- **PDF Engine**: [pdfjs-dist](https://mozilla.github.io/pdf.js/) (Rendering & text extraction)
-- **Secure PDF Generator**: [jsPDF](https://github.com/parallax/jsPDF) (Flat image-only PDF builder)
-- **Face Detection AI**: [@mediapipe/tasks-vision](https://developers.google.com/mediapipe/solutions/vision/face_detector) (BlazeFace Short-Range)
-- **Utilities**: [@vueuse/core](https://vueuse.org/)
+| Aspek | Editor Bawaan / Markup | PDF Reader Standar | Layanan Online Cloud | Cherdocky |
+| :--- | :---: | :---: | :---: | :---: |
+| **Lokasi Proses** | Lokal | Lokal | Server Cloud | **Lokal (Browser)** |
+| **Text Layer PDF** | Rawan tertinggal | Tergantung fitur | Bervariasi | **Bebas Text Layer (Flat)** |
+| **Penimpaan Pixel** | Berisiko transparansi | Anotasi terpisah | Bervariasi | **Solid Pixel Overwrite** |
+| **Deteksi PII Otomatis** | Tidak ada | Manual | Ada (File diunggah) | **Otomatis (Lokal)** |
+| **Deteksi Wajah AI** | Tidak ada | Tidak ada | Ada (File diunggah) | **MediaPipe AI (Lokal)** |
+| **Metadata EXIF** | Tetap tersimpan | Tetap tersimpan | Bervariasi | **Dibersihkan otomatis** |
 
 ---
 
-## 🚀 Memulai (Getting Started)
+## Cara Kerja Sistem
+
+Pipeline redaksi dokumen berjalan dalam 3 tahap:
+
+<p align="center">
+  <img src="public/redaction_flow.svg" alt="Diagram Alur Redaksi Cherdocky" width="100%" />
+</p>
+
+1. **Tahap 1: Ingestion & Rasterisasi** — Mengubah seluruh halaman dokumen (PDF / Gambar) menjadi bidang citra canvas datar tanpa layer teks terpisah.
+2. **Tahap 2: Deteksi & Penimpaan Pixel Fisik** — Menjalankan deteksi teks spasial (OCR Tesseract.js), deteksi wajah (MediaPipe BlazeFace), dan input sensor manual. Pixel target ditimpa secara permanen dengan `ctx.fillRect` (RGB solid).
+3. **Tahap 3: Penyusunan Dokumen Baru** — Membungkus canvas bersih menjadi Flat PDF (bebas text layer) atau file gambar murni dengan metadata EXIF yang dibersihkan.
+
+---
+
+## Dokumentasi Logika & Alur Sistem
+
+Rincian mengenai alur data, arsitektur modul, struktur data, dan catatan evaluasi teknis tersedia pada dokumen berikut:
+
+👉 **[SYSTEM_FLOW.md](SYSTEM_FLOW.md)**
+
+---
+
+## Teknologi yang Digunakan
+
+- **Frontend**: Vue 3 (Composition API, TypeScript)
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS & Lucide Icons
+- **OCR**: Tesseract.js (WebAssembly)
+- **PDF Processing**: pdfjs-dist, jsPDF, dan pdf-lib
+- **Face Detection**: Google MediaPipe Vision (BlazeFace Short-Range WASM)
+- **Utilities**: VueUse
+
+---
+
+## Panduan Penggunaan
+
+1. **Unggah Dokumen**: Masukkan file gambar (JPG, PNG, WebP) atau berkas PDF.
+2. **Pilih Mode (Khusus PDF)**: Pilih mode teks cepat untuk PDF digital atau mode scan OCR untuk dokumen hasil pemindaian.
+3. **Periksa & Sesuaikan Sensor**: Tinjau area yang terdeteksi otomatis, gunakan klik untuk toggle sensor, atau gunakan mode blok manual untuk menandai area tambahan.
+4. **Ekspor**: Klik tombol konfirmasi ekspor dan pilih format output yang diinginkan (Flat PDF atau Gambar).
+
+---
+
+## Menjalankan Proyek Secara Lokal
 
 ### Prasyarat
+- Node.js versi 18 atau lebih baru
+- npm, pnpm, atau yarn
 
-- [Node.js](https://nodejs.org/) versi 18.0.0 atau lebih baru
-- `npm`, `pnpm`, atau `yarn`
+### Langkah Instalasi
+```bash
+# 1. Clone repositori
+git clone https://github.com/ImamWahyudiz/Cherdocky.git
+cd Cherdocky
 
-### Instalasi & Menjalankan Lokal
+# 2. Instal dependensi
+npm install
 
-1. **Clone repositori:**
-   ```bash
-   git clone https://github.com/ImamWahyudiz/Cherdocky.git
-   cd Cherdocky
-   ```
+# 3. Jalankan development server
+npm run dev
+```
+Buka browser pada alamat `http://localhost:5173`.
 
-2. **Instal dependensi:**
-   ```bash
-   npm install
-   ```
-
-3. **Jalankan Development Server:**
-   ```bash
-   npm run dev
-   ```
-   Buka browser di `http://localhost:5173`.
-
-4. **Build untuk Produksi:**
-   ```bash
-   npm run build
-   ```
-   Hasil build siap deploy akan tersedia di folder `dist/`.
+### Build Produksi
+```bash
+npm run build
+```
+File hasil kompilasi akan tersimpan di direktori `dist/`.
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 
-Proyek ini dilisensikan di bawah [Lisensi MIT](LICENSE) — bebas digunakan, dimodifikasi, dan didistribusikan untuk keperluan pribadi maupun komersial.
+Proyek ini menggunakan [Lisensi MIT](LICENSE).

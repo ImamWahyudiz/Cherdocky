@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 620" width="100%" height="100%" style="background:#0f172a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; border-radius:12px;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+
+    <!-- Arrow Marker -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#8b5cf6"/>
+    </marker>
+  </defs>
+
+  <!-- Outer Canvas Container -->
+  <rect x="15" y="15" width="890" height="590" rx="10" fill="#1e293b" fill-opacity="0.4" stroke="#334155" stroke-width="1.5" />
+  <text x="35" y="45" fill="#94a3b8" font-size="13" font-weight="700" letter-spacing="1.5">CLIENT BROWSER ENVIRONMENT (100% OFFLINE-FIRST)</text>
+  <rect x="745" y="30" width="145" height="22" rx="11" fill="#047857" fill-opacity="0.3" stroke="#10b981" stroke-width="1"/>
+  <text x="760" y="45" fill="#34d399" font-size="11" font-weight="600">ZERO DATA LEAK</text>
+
+  <!-- Section 1: Top Row (UI & Controller) -->
+  <!-- User Interface Box -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="70" width="380" height="70" rx="8" fill="url(#cardBg)" stroke="#3b82f6" stroke-width="1.5"/>
+    <rect x="40" y="70" width="6" height="70" rx="3" fill="#3b82f6"/>
+    <text x="60" y="98" fill="#f8fafc" font-size="15" font-weight="700">User Interface &amp; Viewport</text>
+    <text x="60" y="122" fill="#94a3b8" font-size="12">MainPage.vue &amp; DocumentVerification.vue (Canvas)</text>
+  </g>
+
+  <!-- State & Controller Box -->
+  <g filter="url(#shadow)">
+    <rect x="500" y="70" width="380" height="70" rx="8" fill="url(#cardBg)" stroke="#8b5cf6" stroke-width="1.5"/>
+    <rect x="500" y="70" width="6" height="70" rx="3" fill="#8b5cf6"/>
+    <text x="520" y="98" fill="#f8fafc" font-size="15" font-weight="700">Document Controller &amp; State</text>
+    <text x="520" y="122" fill="#94a3b8" font-size="12">useDocumentIngestion.ts (Reactive State &amp; Memory)</text>
+  </g>
+
+  <!-- Bi-directional connector between UI and Controller -->
+  <path d="M 420 105 L 500 105" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- Arrow down from Controller to Ingestion Router -->
+  <path d="M 690 140 L 690 165 L 460 165 L 460 180" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Section 2: Ingestion Router -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="185" width="840" height="42" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1.2"/>
+    <text x="460" y="211" fill="#e2e8f0" font-size="13" font-weight="600" text-anchor="middle">INGESTION ROUTER: Auto-detect (Multi-Images / Native Text PDF / Scanned PDF)</text>
+  </g>
+
+  <!-- Lines branching from router -->
+  <path d="M 170 227 L 170 255" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 460 227 L 460 255" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 750 227 L 750 255" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Section 3: Ingestion Pathways -->
+  <!-- Branch 1: Images -->
+  <rect x="40" y="260" width="260" height="55" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.2"/>
+  <text x="55" y="283" fill="#cbd5e1" font-size="13" font-weight="600">Image Files (JPG, PNG)</text>
+  <text x="55" y="302" fill="#64748b" font-size="11">HTML5 Image Loader &amp; Scale Normalizer</text>
+
+  <!-- Branch 2: Native PDF -->
+  <rect x="330" y="260" width="260" height="55" rx="6" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.2"/>
+  <text x="345" y="283" fill="#cbd5e1" font-size="13" font-weight="600">Native Digital PDF</text>
+  <text x="345" y="302" fill="#a78bfa" font-size="11">pdfjs-dist Text Layer Geometry Matrix</text>
+
+  <!-- Branch 3: Scanned PDF -->
+  <rect x="620" y="260" width="260" height="55" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.2"/>
+  <text x="635" y="283" fill="#cbd5e1" font-size="13" font-weight="600">Scanned / Image PDF</text>
+  <text x="635" y="302" fill="#64748b" font-size="11">pdfjs-dist Canvas Multi-Page Rasterizer</text>
+
+  <!-- Connector from Images (Branch 1) to OCR and Face AI -->
+  <path d="M 170 315 L 170 345 L 240 345 L 240 355" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 170 315 L 170 345 L 680 345 L 680 355" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Connector from Native Digital PDF (Branch 2): langsung turun lurus tembus ke Destructive Redactor -->
+  <path d="M 460 315 L 460 505" stroke="#8b5cf6" stroke-width="1.8" stroke-dasharray="5,5" fill="none" marker-end="url(#arrow-purple)"/>
+  <!-- Label on Native PDF direct line -->
+  <rect x="425" y="415" width="70" height="18" rx="4" fill="#0f172a" stroke="#8b5cf6" stroke-width="1"/>
+  <text x="460" y="428" fill="#c4b5fd" font-size="9.5" font-weight="600" text-anchor="middle">Fast Matrix</text>
+
+  <!-- Connector from Scanned PDF (Branch 3) to OCR and Face AI -->
+  <path d="M 750 315 L 750 345 L 240 345 L 240 355" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 750 315 L 750 345 L 680 345 L 680 355" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Section 4: Engine Modules -->
+  <!-- OCR & Text Engine -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="360" width="375" height="110" rx="8" fill="url(#cardBg)" stroke="#3b82f6" stroke-width="1.5"/>
+    <rect x="40" y="360" width="6" height="110" rx="3" fill="#3b82f6"/>
+    <text x="58" y="388" fill="#f8fafc" font-size="14" font-weight="700">OCR &amp; Spatial Text Engine</text>
+    <text x="58" y="408" fill="#94a3b8" font-size="11">• Tesseract.js (WebAssembly Worker)</text>
+    <text x="58" y="426" fill="#94a3b8" font-size="11">• Word-level Bounding Box &amp; Confidence</text>
+    <text x="58" y="444" fill="#94a3b8" font-size="11">• Fuzzy Digit Normalizer (O→0, I→1, S→5, B→8)</text>
+    <text x="58" y="460" fill="#94a3b8" font-size="11">• Contextual Label Proximity &amp; Keywords</text>
+  </g>
+
+  <!-- Face Detection AI -->
+  <g filter="url(#shadow)">
+    <rect x="505" y="360" width="375" height="110" rx="8" fill="url(#cardBg)" stroke="#10b981" stroke-width="1.5"/>
+    <rect x="505" y="360" width="6" height="110" rx="3" fill="#10b981"/>
+    <text x="523" y="388" fill="#f8fafc" font-size="14" font-weight="700">On-Device AI Face Detector</text>
+    <text x="523" y="408" fill="#94a3b8" font-size="11">• Google MediaPipe BlazeFace (Short-Range)</text>
+    <text x="523" y="426" fill="#94a3b8" font-size="11">• WebAssembly &amp; WebGL Acceleration</text>
+    <text x="523" y="444" fill="#94a3b8" font-size="11">• Sub-pixel BBox with Dynamic Padding</text>
+    <text x="523" y="460" fill="#94a3b8" font-size="11">• Automatic ID Card / Passport Portrait Detection</text>
+  </g>
+
+  <!-- Connectors from OCR and Face AI to Destructive Redactor -->
+  <path d="M 225 470 L 225 495 L 300 495 L 300 505" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 690 470 L 690 495 L 620 495 L 620 505" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Section 5: Destructive Redactor -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="510" width="840" height="75" rx="8" fill="url(#cardBg)" stroke="#ef4444" stroke-width="1.5"/>
+    <rect x="40" y="510" width="6" height="75" rx="3" fill="#ef4444"/>
+    <text x="60" y="535" fill="#f8fafc" font-size="14" font-weight="700">Destructive Redaction &amp; Flat Export Engine (redactor.ts)</text>
+    <text x="60" y="555" fill="#cbd5e1" font-size="11.5">1. Hard Pixel Overwrite: Nilai byte RGB asli di RAM canvas ditimpa penuh (ctx.fillRect solid RGB: 0,0,0,255)</text>
+    <text x="60" y="573" fill="#cbd5e1" font-size="11.5">2. Stripping EXIF &amp; Metadata | 3. Flat Image-Only PDF Re-assembly (Zero Vector Text Layer) / Clean Images</text>
+  </g>
+</svg>
