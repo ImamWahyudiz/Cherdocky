@@ -8,25 +8,44 @@ export interface SpatialWord {
   height: number;
   confidence: number;
   forceRedact?: boolean;
+  pageIndex?: number;
 }
 
-// Lazy singleton worker for region re-scans with Indonesian + English support
+// Lazy persistent singleton worker for Indonesian + English OCR
 let _cachedWorker: Worker | null = null;
+let _workerInitializing: Promise<Worker> | null = null;
 
-async function getWorker(): Promise<Worker> {
-  if (!_cachedWorker) {
-    _cachedWorker = await createWorker(['ind', 'eng']);
-    await _cachedWorker.setParameters({
-      preserve_interword_spaces: '1',
-    });
+async function getWorker(onProgress?: (progress: number) => void): Promise<Worker> {
+  if (_cachedWorker) {
+    return _cachedWorker;
   }
-  return _cachedWorker;
+
+  if (!_workerInitializing) {
+    _workerInitializing = (async () => {
+      const worker = await createWorker(['ind', 'eng'], 1, {
+        logger: (m) => {
+          if (m.status === 'recognizing text' && onProgress) {
+            onProgress(m.progress);
+          }
+        },
+      });
+
+      await worker.setParameters({
+        preserve_interword_spaces: '1',
+      });
+
+      _cachedWorker = worker;
+      return worker;
+    })();
+  }
+
+  return _workerInitializing;
 }
 
 /**
- * Advanced image preprocessing for OCR:
- * 1. Grayscale + high contrast to separate text from background security guilloche patterns.
- * 2. 3x3 Sharpening convolution filter to crispen text edges.
+ * Fast, hardware-accelerated image preprocessing for OCR:
+ * 1. Grayscale + high contrast to separate text from guilloche patterns.
+ * 2. Clamps dimensions to max 2400px so high-res phone photos don't freeze the browser.
  */
 async function preprocessImage(source: Blob | File): Promise<Blob> {
   return new Promise((resolve) => {
@@ -34,61 +53,36 @@ async function preprocessImage(source: Blob | File): Promise<Blob> {
     const img = new Image();
 
     img.onload = () => {
+      URL.revokeObjectURL(url);
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+
+      let w = img.naturalWidth || img.width || 800;
+      let h = img.naturalHeight || img.height || 1000;
+
+      // Bound resolution to max 2400px for optimal speed and memory safety
+      const MAX_DIM = 2400;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        const scale = Math.min(MAX_DIM / w, MAX_DIM / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        URL.revokeObjectURL(url);
-        return resolve(source instanceof Blob ? source : source);
-      }
+      if (!ctx) return resolve(source);
 
-      // Grayscale + strong contrast boost
-      ctx.filter = 'grayscale(100%) contrast(1.4) brightness(1.0)';
-      ctx.drawImage(img, 0, 0);
-
-      // Pixel-level sharpening pass
-      try {
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-        const width = canvas.width;
-        const height = canvas.height;
-        const output = new Uint8ClampedArray(data);
-
-        // 3x3 sharpening kernel: [0, -1, 0, -1, 5, -1, 0, -1, 0]
-        for (let y = 1; y < height - 1; y++) {
-          for (let x = 1; x < width - 1; x++) {
-            const idx = (y * width + x) * 4;
-            const top = ((y - 1) * width + x) * 4;
-            const bottom = ((y + 1) * width + x) * 4;
-            const left = (y * width + (x - 1)) * 4;
-            const right = (y * width + (x + 1)) * 4;
-
-            for (let c = 0; c < 3; c++) {
-              const val = 5 * data[idx + c] - data[top + c] - data[bottom + c] - data[left + c] - data[right + c];
-              output[idx + c] = Math.min(255, Math.max(0, val));
-            }
-            output[idx + 3] = data[idx + 3];
-          }
-        }
-
-        ctx.putImageData(new ImageData(output, width, height), 0, 0);
-      } catch (err) {
-        console.warn('Canvas pixel sharpening skipped (CORS/memory):', err);
-      }
+      // Hardware-accelerated contrast boost
+      ctx.filter = 'grayscale(100%) contrast(1.35) brightness(1.05)';
+      ctx.drawImage(img, 0, 0, w, h);
 
       canvas.toBlob((blob) => {
-        if (typeof source !== 'string') {
-          try { URL.revokeObjectURL(url); } catch (_) {}
-        }
         resolve(blob ?? source);
-      }, 'image/png', 1.0);
+      }, 'image/png');
     };
 
     img.onerror = () => {
-      if (typeof source !== 'string') {
-        try { URL.revokeObjectURL(url); } catch (_) {}
-      }
+      URL.revokeObjectURL(url);
       resolve(source);
     };
 
@@ -98,7 +92,6 @@ async function preprocessImage(source: Blob | File): Promise<Blob> {
 
 /**
  * Filter raw OCR words to eliminate facial contours, artifacts, and noise.
- * Requires high confidence for short tokens and discards non-alphanumeric gibberish.
  */
 function filterValidOcrWords(rawWords: any[]): SpatialWord[] {
   return rawWords
@@ -109,30 +102,29 @@ function filterValidOcrWords(rawWords: any[]): SpatialWord[] {
       // 1. Discard empty or whitespace
       if (!text) return false;
 
-      // 2. Discard purely non-alphanumeric noise (like ~, |, —, ©, °, ^, *, `, /) unless it's a delimiter ':' or '='
+      // 2. Discard purely non-alphanumeric noise unless delimiter
       const hasAlphaNum = /[a-zA-Z0-9]/.test(text);
       const isCleanDelimiter = text === ':' || text === '=';
       if (!hasAlphaNum && !isCleanDelimiter) return false;
 
-      // 3. Discard tiny noisy bounding boxes (< 5px width or height)
+      // 3. Discard tiny noisy bounding boxes
       const w = word.bbox.x1 - word.bbox.x0;
       const h = word.bbox.y1 - word.bbox.y0;
-      if (w < 5 || h < 5) return false;
+      if (w < 4 || h < 4) return false;
 
-      // 4. Strong numbers or date patterns: allow lower threshold (>= 30%)
-      const isNumberOrDate = /^\d{2,16}$/.test(text) || /\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/.test(text);
+      // 4. Strong numbers or date patterns
+      const isNumberOrDate =
+        /^\d{2,16}$/.test(text) || /\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/.test(text);
       if (isNumberOrDate) {
-        return conf >= 30;
+        return conf >= 25;
       }
 
-      // 5. Short tokens (1-2 characters):
-      // Facial contours and texture artifacts frequently generate 1-2 char gibberish (e.g. 'pl', 'y', 'eo', 'oa', 'Ag').
-      // Only keep 1-2 char tokens if confidence >= 55% AND it's not gibberish punctuation.
+      // 5. Short tokens (1-2 characters)
       if (text.length <= 2) {
         if (isCleanDelimiter) return true;
-        if (conf < 55) return false;
+        if (conf < 50) return false;
       } else {
-        if (conf < 40) return false;
+        if (conf < 35) return false;
       }
 
       return true;
@@ -154,27 +146,22 @@ export async function processDocument(
   file: File | Blob,
   onProgress?: (progress: number) => void
 ): Promise<SpatialWord[]> {
-  const worker = await createWorker(['ind', 'eng'], 1, {
-    logger: (m) => {
-      if (m.status === 'recognizing text' && onProgress) {
-        onProgress(m.progress);
-      }
-    }
-  });
+  try {
+    const worker = await getWorker(onProgress);
+    const processedImage = await preprocessImage(file);
+    const { data } = await worker.recognize(processedImage, {}, { blocks: true });
 
-  await worker.setParameters({
-    preserve_interword_spaces: '1',
-  });
+    if (onProgress) onProgress(1);
 
-  const processedImage = await preprocessImage(file);
-  const { data } = await worker.recognize(processedImage, {}, { blocks: true });
-  await worker.terminate();
+    const rawWords = data.blocks
+      ? data.blocks.flatMap((b) => b.paragraphs).flatMap((p) => p.lines).flatMap((l) => l.words)
+      : [];
 
-  const rawWords = data.blocks
-    ? data.blocks.flatMap((b) => b.paragraphs).flatMap((p) => p.lines).flatMap((l) => l.words)
-    : [];
-
-  return filterValidOcrWords(rawWords);
+    return filterValidOcrWords(rawWords);
+  } catch (err) {
+    console.error('Tesseract OCR error:', err);
+    return [];
+  }
 }
 
 /**

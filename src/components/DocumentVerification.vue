@@ -1,127 +1,210 @@
 <template>
-  <div class="fixed inset-0 w-full h-full bg-gray-900 z-50 flex flex-col overflow-hidden select-none">
+  <div class="fixed inset-0 w-full h-full bg-gray-950 z-50 flex flex-col overflow-hidden select-none">
     <!-- Top Header Bar -->
-    <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex justify-between items-center z-20 flex-shrink-0 shadow-sm">
-      <div class="flex items-center gap-3">
-        <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+    <header class="px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex justify-between items-center z-20 flex-shrink-0 shadow-sm">
+      <!-- Left Controls: 3 uniform buttons on mobile -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Desktop Title -->
+        <div class="hidden md:flex items-center gap-2 mr-2">
           <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-          Verifikasi & Sensor Dokumen
-        </h2>
-        <span class="hidden sm:inline text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
-          {{ documentType.toUpperCase() }}
-        </span>
+          <h2 class="text-sm lg:text-base font-bold text-gray-900 dark:text-white">
+            Verifikasi & Sensor Dokumen
+          </h2>
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium uppercase">
+            {{ documentType === 'text-pdf' ? 'PDF Teks Asli' : documentType === 'image-pdf' ? 'PDF Scan (OCR)' : 'Gambar / Foto' }}
+          </span>
+        </div>
+
+        <!-- 1. Rotate Button (Uniform size on mobile) -->
+        <button
+          type="button"
+          @click="rotateAllPagesClockwise"
+          class="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
+          title="Putar Dokumen 90°"
+        >
+          <RotateCw class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          <span class="hidden sm:inline">Putar</span>
+        </button>
+
+        <!-- 2. Canvas Mode Toggle Button (Only for image / scanned documents) -->
+        <button
+          v-if="documentType !== 'text-pdf'"
+          type="button"
+          @click="toggleDragMode"
+          class="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 text-xs font-medium rounded-lg transition-colors border flex items-center justify-center gap-1.5 shadow-sm"
+          :class="dragMode === 'block'
+            ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800'
+            : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'"
+          :title="dragMode === 'block' ? 'Mode: Blokir Manual (Klik untuk ubah ke Scan)' : 'Mode: Scan Area (Klik untuk ubah ke Blokir)'"
+        >
+          <Square v-if="dragMode === 'block'" class="w-4 h-4 text-red-600 dark:text-red-400" />
+          <Scan v-else class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <span class="hidden sm:inline">{{ dragMode === 'block' ? 'Mode Blok' : 'Mode Scan' }}</span>
+        </button>
+
+        <!-- 3. Fit / Reset Zoom Button (Uniform size on mobile) -->
+        <button
+          type="button"
+          @click="zoomReset"
+          class="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
+          title="Sesuaikan Ukuran Layar (Fit)"
+        >
+          <Maximize2 class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          <span class="hidden sm:inline">Pas Layar</span>
+        </button>
+
+        <!-- Add Image Button (if image mode) -->
+        <label
+          v-if="documentType === 'image'"
+          class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg transition-colors border border-purple-200 dark:border-purple-800 cursor-pointer shadow-sm"
+          title="Tambah Gambar Baru"
+        >
+          <Plus class="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          <span>Tambah Gambar</span>
+          <input
+            type="file"
+            multiple
+            accept="image/jpeg, image/png"
+            class="hidden"
+            @change="handleAdditionalFilesSelect"
+          />
+        </label>
       </div>
 
-      <!-- Center / Header Actions: Rotate & Rescan Controls -->
-      <div class="flex items-center gap-1.5">
+      <!-- Right Controls: 2 buttons (Cancel is uniform, Confirm is prominent) -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- 4. Cancel Button (Uniform size on mobile, text on sm+) -->
         <button
           type="button"
-          @click="rotateCounterClockwise"
-          class="px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors border border-gray-300 dark:border-gray-700 flex items-center gap-1"
-          title="Putar 90° Berlawanan Jarum Jam"
-        >
-          <span>↺</span>
-          <span class="hidden sm:inline">Putar Kiri</span>
-        </button>
-        <button
-          type="button"
-          @click="rotateClockwise"
-          class="px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors border border-gray-300 dark:border-gray-700 flex items-center gap-1"
-          title="Putar 90° Searah Jarum Jam"
-        >
-          <span>↻</span>
-          <span class="hidden sm:inline">Putar Kanan</span>
-        </button>
-        <button
-          type="button"
-          @click="rescanFullDocument"
-          :disabled="isScanningFull"
-          class="px-2.5 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md transition-colors border border-blue-200 dark:border-blue-800 flex items-center gap-1.5 ml-1"
-          title="Pindai ulang seluruh teks pada posisi gambar saat ini"
-        >
-          <span v-if="isScanningFull" class="animate-spin">⏳</span>
-          <span v-else>🔍</span>
-          <span>Pindai Ulang</span>
-        </button>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <button
-          class="px-3.5 py-1.5 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors border border-gray-300 dark:border-gray-700"
           @click="$emit('cancel')"
+          class="w-9 h-9 sm:w-auto sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
+          title="Batal dan kembali ke beranda"
         >
-          Batal
+          <X class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <span class="hidden sm:inline">Batal</span>
         </button>
+
+        <!-- 5. Confirm & Export Button (Distinct, prominent styling) -->
         <button
-          class="px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-colors flex items-center gap-1.5"
+          type="button"
           @click="handleConfirm"
+          class="h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+          title="Konfirmasi sensor dan ekspor dokumen"
         >
+          <Check class="w-4 h-4 text-white stroke-[2.5]" />
           <span>Konfirmasi & Ekspor</span>
         </button>
       </div>
     </header>
-    
-    <!-- Main Content Area: Left/Top Canvas, Right/Bottom Controls -->
+
+    <!-- Main Workspace Area -->
     <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-      <!-- Document Canvas Viewport -->
+      <!-- Document Canvas Viewport (Scrollable & Bounded) -->
       <main
         ref="scrollContainer"
-        class="overflow-auto p-4 sm:p-6 relative bg-gray-950 flex items-start justify-center flex-shrink-0 lg:flex-1 h-[46vh] sm:h-[52vh] lg:h-auto border-b lg:border-b-0 border-gray-800"
+        class="overflow-auto p-3 sm:p-6 relative bg-gray-950 flex-1 h-[48vh] sm:h-[54vh] lg:h-auto border-b lg:border-b-0 border-gray-800 flex justify-center items-start touch-none"
         :class="dragMode === 'block' ? 'cursor-crosshair' : 'cursor-default'"
         @wheel="onWheel"
       >
-        <!-- Container for image and overlays -->
+        <!-- Canvas Transform Container with Bounded Width -->
         <div
-          ref="imageContainer"
-          class="relative inline-block origin-top-left shadow-2xl transition-transform duration-75"
+          ref="canvasStack"
+          class="flex flex-col items-center gap-6 py-4 transition-transform duration-75 origin-top"
           :style="{
-            width: imgWidth + 'px',
-            height: imgHeight + 'px',
             transform: `scale(${zoomLevel})`,
             transformOrigin: 'top center'
           }"
-          @mousedown.prevent="onMouseDown"
-          @mousemove.prevent="onMouseMove"
-          @mouseup.prevent="onMouseUp"
         >
-          <img
-            ref="docImage"
-            :src="currentImageUrl"
-            @load="onImageLoad"
-            class="max-w-none shadow-md pointer-events-none bg-white block"
-          />
-          
-          <template v-if="imageLoaded">
-            <!-- Word bounding boxes: semi-transparent green for normal text, glowing red for redacted -->
-            <div
-              v-for="(word, index) in editableWords"
-              :key="'word-' + index"
-              class="absolute border flex items-center justify-center overflow-visible group pointer-events-none transition-all"
-              :class="[
-                isWordRedacted(index, word)
-                  ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50'
-                  : 'border border-emerald-500/50 bg-emerald-500/15 z-10'
-              ]"
-              :style="{
-                left: word.x + 'px',
-                top: word.y + 'px',
-                width: word.width + 'px',
-                height: word.height + 'px'
-              }"
-            >
-              <!-- Tooltip showing extracted text on hover -->
-              <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black/90 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap z-30 pointer-events-none shadow-lg">
-                {{ word.text }}
+          <!-- Multi-Page / Multi-Image Sheet List -->
+          <div
+            v-for="(page, pIdx) in localPages"
+            :key="page.id"
+            :ref="(el) => { if (el) pageElements[page.id] = el as HTMLDivElement }"
+            class="relative bg-white shadow-2xl rounded-sm transition-all flex-shrink-0"
+            :style="{
+              width: page.width + 'px',
+              height: page.height + 'px'
+            }"
+            @pointerdown="(e) => onPointerDown(e, page)"
+            @pointermove="(e) => onPointerMove(e, page)"
+            @pointerup="(e) => onPointerUp(e, page)"
+            @pointercancel="onPointerCancel"
+          >
+            <!-- Page Header Index Badge -->
+            <div class="absolute -top-7 left-0 right-0 flex items-center justify-between text-xs text-gray-400 font-medium px-1 pointer-events-none">
+              <div class="flex items-center gap-1.5">
+                <span class="bg-gray-800 text-gray-200 text-[11px] px-2 py-0.5 rounded shadow border border-gray-700">
+                  {{ page.label || `Halaman ${pIdx + 1}` }}
+                </span>
+                <span class="text-[11px] text-gray-400">
+                  ({{ page.width }} × {{ page.height }} px)
+                </span>
+              </div>
+
+              <!-- Per-Page Quick Actions -->
+              <div class="flex items-center gap-1 pointer-events-auto">
+                <button
+                  type="button"
+                  @click.stop="rotateSinglePage(page.id)"
+                  class="bg-gray-800 hover:bg-gray-700 text-gray-300 p-1 rounded transition-colors border border-gray-700"
+                  title="Putar halaman ini 90°"
+                >
+                  <RotateCw class="w-3.5 h-3.5" />
+                </button>
+                <button
+                  v-if="localPages.length > 1 && documentType === 'image'"
+                  type="button"
+                  @click.stop="removeSinglePage(page.id)"
+                  class="bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded transition-colors border border-red-800"
+                  title="Hapus gambar ini"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
-            <!-- Auto-detected face regions (purple) -->
+            <!-- Page Background Preview Image -->
+            <img
+              :src="page.previewUrl"
+              class="w-full h-full object-contain pointer-events-none block select-none bg-white"
+              draggable="false"
+            />
+
+            <!-- Bounding Box Layer -->
+            <!-- 1. Text Bounding Boxes (Clickable directly on any word) -->
+            <template v-for="word in getWordsForPage(page.pageIndex)" :key="'word-' + page.id + '-' + word.globalIndex">
+              <div
+                class="absolute flex items-center justify-center overflow-visible group transition-all"
+                :class="[
+                  isWordRedacted(word.globalIndex, word)
+                    ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer pointer-events-auto'
+                    : documentType === 'text-pdf'
+                      ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer pointer-events-auto z-10'
+                      : 'border border-emerald-500/15 bg-emerald-500/5 pointer-events-none z-10'
+                ]"
+                :style="{
+                  left: word.x + 'px',
+                  top: word.y + 'px',
+                  width: word.width + 'px',
+                  height: word.height + 'px'
+                }"
+                @pointerdown.stop
+                @click.stop="toggleWord(word.globalIndex)"
+              >
+                <!-- Tooltip hover on desktop -->
+                <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black/90 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap z-30 pointer-events-none shadow-lg">
+                  {{ word.text }}
+                </div>
+              </div>
+            </template>
+
+            <!-- 2. Face Detection Regions (Purple) -->
             <template v-if="enableFaceDetection">
               <div
-                v-for="(region, index) in activeFaceRegions"
-                :key="'auto-region-' + index"
+                v-for="(region, fIdx) in getFaceRegionsForPage(page.pageIndex)"
+                :key="'face-' + pIdx + '-' + fIdx"
                 class="absolute pointer-events-none z-20 transition-opacity"
-                :class="disabledAutoRegions.has(index)
+                :class="disabledAutoRegions.has(region.globalIndex)
                   ? 'border border-dashed border-gray-400 bg-gray-400/10 opacity-40'
                   : 'border-2 border-purple-500 bg-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.6)]'"
                 :style="{
@@ -132,18 +215,18 @@
                 }"
               >
                 <span
-                  v-if="!disabledAutoRegions.has(index)"
+                  v-if="!disabledAutoRegions.has(region.globalIndex)"
                   class="absolute -top-5 left-0 bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow"
                 >
-                  Wajah {{ index + 1 }}
+                  Wajah {{ fIdx + 1 }}
                 </span>
               </div>
             </template>
 
-            <!-- Manual blocked regions (custom color / striped) -->
+            <!-- 3. Manual Block Regions (Selected Color / Striped) -->
             <div
-              v-for="(region, index) in manualRegions"
-              :key="'manual-region-' + index"
+              v-for="(region, mIdx) in getManualRegionsForPage(page.pageIndex)"
+              :key="'manual-' + pIdx + '-' + mIdx"
               class="absolute pointer-events-none z-20 border-2"
               :style="{
                 left: region.x + 'px',
@@ -163,13 +246,13 @@
               </span>
             </div>
 
-            <!-- Drag selection rectangle -->
+            <!-- 4. Active Drag Selection Rectangle (Only on the interacting page) -->
             <div
-              v-if="isDragging && selectionRect"
+              v-if="activeDragPageId === page.id && isDragging && selectionRect"
               class="absolute border-2 border-dashed z-30 pointer-events-none"
               :class="dragMode === 'block'
-                ? 'border-red-400 bg-red-400/20'
-                : 'border-blue-400 bg-blue-400/20'"
+                ? 'border-red-400 bg-red-400/25'
+                : 'border-blue-400 bg-blue-400/25'"
               :style="{
                 left: selectionRect.x + 'px',
                 top: selectionRect.y + 'px',
@@ -178,9 +261,9 @@
               }"
             ></div>
 
-            <!-- Re-scanning OCR indicator -->
+            <!-- 5. Active Region Re-Scan OCR Spinner -->
             <div
-              v-if="isReScanning && scanRect"
+              v-if="isReScanning && scanPageId === page.id && scanRect"
               class="absolute border-2 border-yellow-400 bg-yellow-400/25 z-30 pointer-events-none flex items-center justify-center"
               :style="{
                 left: scanRect.x + 'px',
@@ -193,20 +276,18 @@
                 Memindai Teks…
               </span>
             </div>
-          </template>
+          </div>
         </div>
       </main>
 
-      <!-- Sidebar / Bottom Controls: Placed naturally below canvas on mobile -->
-      <aside
-        class="w-full lg:w-84 xl:w-96 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 overflow-y-auto flex flex-col gap-4 flex-1 lg:flex-none flex-shrink-0 z-10 shadow-sm"
-      >
-        <!-- Mode Switcher -->
-        <div class="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 px-1">
-            Mode Interaksi Kanvas
+      <!-- Sidebar / Bottom Controls -->
+      <aside class="w-full lg:w-84 xl:w-96 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 overflow-y-auto flex flex-col gap-4 flex-1 lg:flex-none flex-shrink-0 z-10 shadow-sm">
+        <!-- Interactive Canvas Mode Switcher -->
+        <div class="bg-gray-100 dark:bg-gray-800 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 px-1">
+            {{ documentType === 'text-pdf' ? 'Mode Interaksi PDF Teks' : 'Mode Interaksi Kanvas' }}
           </div>
-          <div class="grid grid-cols-2 gap-1">
+          <div v-if="documentType !== 'text-pdf'" class="grid grid-cols-2 gap-1.5">
             <button
               class="px-2.5 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5"
               :class="dragMode === 'rescan'
@@ -214,7 +295,8 @@
                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
               @click="dragMode = 'rescan'"
             >
-              <span>🔍 Scan Area</span>
+              <Scan class="w-4 h-4" />
+              <span>Scan Area</span>
             </button>
             <button
               class="px-2.5 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5"
@@ -223,32 +305,41 @@
                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
               @click="dragMode = 'block'"
             >
-              <span>🚫 Blok Manual</span>
+              <Square class="w-4 h-4" />
+              <span>Blok Manual</span>
             </button>
           </div>
+          <div v-else class="flex items-center gap-2 p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-md">
+            <CheckCircle2 class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <span class="text-xs font-semibold text-blue-800 dark:text-blue-200">
+              PDF Teks Digital (Tanpa OCR)
+            </span>
+          </div>
           <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 px-1">
-            {{ dragMode === 'block'
-              ? 'Drag untuk memblokir langsung gambar/tabel/teks buram tanpa OCR.'
-              : 'Drag untuk memindai ulang teks yang terlewat pada area yang dipilih.' }}
+            {{ documentType === 'text-pdf'
+              ? 'Seluruh teks digital telah dibaca otomatis. Klik langsung pada kata apa pun untuk menyensor/batal sensor, atau tarik kotak untuk memblokir teks & area.'
+              : dragMode === 'block'
+                ? 'Tarik/Drag untuk memblokir langsung gambar, tabel, atau teks buram.'
+                : 'Tarik/Drag untuk memindai ulang teks yang terlewat pada area yang dipilih.' }}
           </p>
         </div>
 
-        <!-- Redaction Color Picker -->
+        <!-- Redaction Color Selection -->
         <div class="border-b border-gray-200 dark:border-gray-800 pb-3">
           <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Warna Sensor / Redaksi:
+            Warna Sensor / Penghalang:
           </label>
           <div class="flex items-center gap-2">
             <button
               v-for="c in colorPalette"
               :key="c.value"
-              class="w-7 h-7 rounded-full border-2 transition-transform relative"
+              class="w-7 h-7 rounded-full border-2 transition-transform relative flex items-center justify-center"
               :class="selectedColor === c.value ? 'scale-110 border-blue-500 shadow-md ring-2 ring-blue-400/40' : 'border-gray-300 dark:border-gray-600 hover:scale-105'"
               :style="{ backgroundColor: c.value }"
               :title="c.label"
               @click="selectedColor = c.value"
             >
-              <span v-if="selectedColor === c.value" class="absolute inset-0 flex items-center justify-center text-xs" :class="c.value === '#ffffff' ? 'text-black' : 'text-white'">✓</span>
+              <Check v-if="selectedColor === c.value" class="w-3.5 h-3.5" :class="c.value === '#ffffff' ? 'text-black' : 'text-white'" />
             </button>
             <span class="text-xs text-gray-500 dark:text-gray-400 ml-1.5 font-medium">
               {{ colorPalette.find(c => c.value === selectedColor)?.label }}
@@ -256,7 +347,7 @@
           </div>
         </div>
 
-        <!-- Face Detection On-Demand Trigger -->
+        <!-- Face Detection On-Demand Toggle -->
         <div class="border-b border-gray-200 dark:border-gray-800 pb-3">
           <label class="flex items-center justify-between cursor-pointer">
             <div class="flex items-center space-x-2.5">
@@ -270,36 +361,36 @@
                 Deteksi Wajah Otomatis
               </span>
             </div>
-            <span v-if="isScanningFaces" class="text-xs text-purple-600 dark:text-purple-400 animate-pulse font-medium">
+            <span v-if="isScanningFaces" class="text-xs text-purple-600 dark:text-purple-400 animate-pulse font-medium flex items-center gap-1">
+              <Loader2 class="w-3.5 h-3.5 animate-spin" />
               Memindai…
             </span>
           </label>
           <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-            Pindai foto wajah atau pasfoto pada dokumen (termasuk ukuran kecil/banyak) dan tandai untuk disensor.
+            Pindai foto wajah atau pasfoto pada dokumen dan tandai untuk disensor.
           </p>
         </div>
 
-        <!-- Data-Driven Found Sensitive Keywords (data.csv) -->
+        <!-- Sensitive Data Patterns Detected via Regex -->
         <div class="flex flex-col border-b border-gray-200 dark:border-gray-800 pb-3">
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
-              Kata Sensitif Ditemukan (data.csv)
+              Pola Sensitif Terdeteksi
             </h3>
             <div class="flex items-center gap-1.5 text-[11px]" v-if="foundSensitiveKeywords.length > 0">
               <button
-                class="text-blue-600 dark:text-blue-400 hover:underline"
+                class="text-blue-600 dark:text-blue-400 hover:underline font-medium"
                 @click="selectAllKeywords"
               >Semua</button>
               <span class="text-gray-400">|</span>
               <button
-                class="text-gray-500 dark:text-gray-400 hover:underline"
+                class="text-gray-500 dark:text-gray-400 hover:underline font-medium"
                 @click="deselectAllKeywords"
               >Batal</button>
             </div>
           </div>
 
-          <!-- Dynamic list of only detected keywords -->
-          <div v-if="foundSensitiveKeywords.length > 0" class="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+          <div v-if="foundSensitiveKeywords.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
             <label
               v-for="item in foundSensitiveKeywords"
               :key="item.id"
@@ -322,22 +413,64 @@
                 </div>
               </div>
               <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold ml-2">
-                {{ item.count }}x
+                {{ item.count }} kata
               </span>
             </label>
           </div>
 
           <div v-else class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md border border-dashed border-gray-200 dark:border-gray-700 text-center">
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              Tidak ada kata kunci dari <code class="text-[11px] text-blue-500">data.csv</code> terdeteksi. Pola mandiri (NIK, nomor telepon, tanggal lahir) tetap otomatis disensor jika cocok.
+              Tidak ada pola sensitif otomatis (NIK, Telepon, Email, Tanggal) yang terdeteksi.
             </p>
+          </div>
+        </div>
+
+        <!-- Manual Selected Words Section (Populates dynamically as user clicks/selects words on canvas) -->
+        <div v-if="manualSelectedWordsList.length > 0" class="flex flex-col border-b border-gray-200 dark:border-gray-800 pb-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              <h3 class="font-semibold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
+                Kata Pilihan Manual ({{ manualSelectedWordsList.length }})
+              </h3>
+            </div>
+            <button
+              type="button"
+              class="text-[11px] text-red-600 dark:text-red-400 hover:underline font-medium"
+              @click="clearAllManualSelectedWords"
+            >
+              Hapus Semua
+            </button>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+            <div
+              v-for="item in manualSelectedWordsList"
+              :key="item.text"
+              class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-800 dark:text-red-200 text-xs shadow-sm"
+            >
+              <span class="font-medium max-w-[130px] truncate" :title="item.text">
+                {{ item.text }}
+              </span>
+              <span v-if="item.count > 1" class="text-[10px] bg-red-200 dark:bg-red-900/60 text-red-900 dark:text-red-200 px-1 rounded-full font-bold">
+                {{ item.count }}x
+              </span>
+              <button
+                type="button"
+                @click.stop="removeManualSelectedWord(item.indices)"
+                class="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-0.5 rounded transition-colors"
+                title="Batal sensor kata ini"
+              >
+                <X class="w-3 h-3 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Custom Keyword Input -->
         <div>
           <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-            Kata Kunci Tambahan (Kustom):
+            Kata atau kata kunci:
           </label>
           <input
             v-model="customPiiText"
@@ -347,8 +480,12 @@
           />
         </div>
 
-        <!-- Status & Stats Summary -->
-        <div class="text-[11px] text-gray-500 dark:text-gray-400 space-y-1 pt-1">
+        <!-- Stats Summary -->
+        <div class="text-[11px] text-gray-500 dark:text-gray-400 space-y-1 pt-1 border-t border-gray-200 dark:border-gray-800">
+          <div class="flex justify-between">
+            <span>Total Lembar / Halaman:</span>
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ localPages.length }}</span>
+          </div>
           <div class="flex justify-between">
             <span>Total Kata Terdeteksi:</span>
             <span class="font-medium text-gray-700 dark:text-gray-300">{{ editableWords.length }}</span>
@@ -357,81 +494,82 @@
             <span>Kata yang Disensor:</span>
             <span class="font-medium text-red-600 dark:text-red-400">{{ totalRedactedWordsCount }} kata</span>
           </div>
-          <div class="flex justify-between" v-if="manualRegions.length > 0">
+          <div class="flex justify-between" v-if="allManualRegions.length > 0">
             <span>Blok Manual:</span>
-            <span class="font-medium text-red-600 dark:text-red-400">{{ manualRegions.length }} area</span>
+            <span class="font-medium text-red-600 dark:text-red-400">{{ allManualRegions.length }} area</span>
           </div>
-          <div class="flex justify-between" v-if="enableFaceDetection && activeFaceRegions.length > 0">
+          <div class="flex justify-between" v-if="enableFaceDetection && allFaceRegions.length > 0">
             <span>Wajah Terdeteksi:</span>
-            <span class="font-medium text-purple-600 dark:text-purple-400">{{ activeFaceRegions.length - disabledAutoRegions.size }} wajah</span>
+            <span class="font-medium text-purple-600 dark:text-purple-400">{{ allFaceRegions.length - disabledAutoRegions.size }} wajah</span>
           </div>
         </div>
 
         <!-- Status Flash Message -->
-        <div v-if="statusMessage" class="text-xs p-2 rounded" :class="statusMessageClass">
+        <div v-if="statusMessage" class="text-xs p-2.5 rounded-md" :class="statusMessageClass">
           {{ statusMessage }}
         </div>
       </aside>
     </div>
 
-    <!-- Bottom Status & Zoom Controls Bar -->
-    <footer class="px-4 py-2.5 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs text-gray-600 dark:text-gray-400 flex flex-wrap items-center justify-between gap-2 z-20 flex-shrink-0">
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span class="font-medium text-gray-800 dark:text-gray-200">
-          {{ dragMode === 'block' ? '🚫 Klik untuk hapus blok. Drag untuk blokir area.' : '🔍 Klik untuk sensor/batal sensor kata. Drag untuk scan teks baru.' }}
-        </span>
-        <span class="hidden sm:inline text-gray-400">•</span>
-        <span class="text-gray-500 dark:text-gray-400 hidden sm:inline">
-          Scroll: Pan · Shift+Scroll: Horizontal · Ctrl+Scroll: Zoom
+    <!-- Bottom Status & Zoom Bar -->
+    <footer class="px-4 py-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs text-gray-600 dark:text-gray-400 flex items-center justify-between gap-2 z-20 flex-shrink-0">
+      <div class="flex items-center gap-2 truncate">
+        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">
+          {{ dragMode === 'block' ? 'Klik untuk hapus blok. Drag untuk blokir area.' : 'Klik untuk sensor/batal kata. Drag untuk scan teks baru.' }}
         </span>
       </div>
 
-      <!-- Zoom Controls & Quick Rotate -->
-      <div class="flex items-center gap-1.5 ml-auto">
-        <button
-          type="button"
-          @click="rotateClockwise"
-          class="px-2.5 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium transition-colors mr-1 flex items-center gap-1"
-          title="Putar Dokumen 90°"
-        >
-          <span>↻</span>
-          <span>Putar</span>
-        </button>
+      <!-- Zoom Slider Controls -->
+      <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
         <button
           @click="zoomOut"
-          class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold transition-colors"
-        >−</button>
-        <span class="font-mono w-11 text-center font-semibold text-gray-800 dark:text-gray-200">
+          class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold transition-colors"
+        >
+          <ZoomOut class="w-3.5 h-3.5" />
+        </button>
+        <span class="font-mono w-10 text-center font-semibold text-gray-800 dark:text-gray-200 text-xs">
           {{ Math.round(zoomLevel * 100) }}%
         </span>
         <button
           @click="zoomIn"
-          class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold transition-colors"
-        >+</button>
-        <button
-          @click="zoomReset"
-          class="px-2.5 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium transition-colors ml-1"
-        >Pas</button>
+          class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold transition-colors"
+        >
+          <ZoomIn class="w-3.5 h-3.5" />
+        </button>
       </div>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import {
+  RotateCw,
+  Scan,
+  Square,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  Check,
+  X,
+  Plus,
+  Trash2,
+  Loader2,
+} from 'lucide-vue-next';
 import type { SpatialWord } from '~/utils/ocrEngine';
-import { processRegion, processDocument } from '~/utils/ocrEngine';
+import { processRegion } from '~/utils/ocrEngine';
 import {
   findContextualPIIWordIndices,
   extractFoundSensitiveKeywords,
   type PIIType,
-  type FoundKeywordItem
+  type FoundKeywordItem,
 } from '~/utils/piiDetector';
-import type { DocumentType } from '~/composables/useDocumentIngestion';
+import type { DocumentType, DocumentPageItem } from '~/composables/useDocumentIngestion';
 import { detectFaces, type DetectedRegion } from '~/utils/faceDetector';
 
 const props = defineProps<{
-  imageUrl: string;
+  pages: DocumentPageItem[];
+  imageUrl?: string;
   words: SpatialWord[];
   documentType: DocumentType;
   detectedRegions?: DetectedRegion[];
@@ -439,29 +577,43 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'confirm', data: {
+    pages: DocumentPageItem[];
     words: SpatialWord[];
     piiTypes: PIIType[];
     customText: string;
     regions: DetectedRegion[];
     redactionColor: string;
-    rotatedImageUrl?: string;
   }): void;
   (e: 'cancel'): void;
+  (e: 'add-images', files: File[]): void;
 }>();
 
-const currentImageUrl = ref(props.imageUrl);
-const editableWords = ref<SpatialWord[]>([]);
-const imageContainer = ref<HTMLDivElement | null>(null);
+// --- Local Pages State ---
+const localPages = ref<DocumentPageItem[]>([]);
+const pageElements = ref<Record<string, HTMLDivElement>>({});
+const editableWords = ref<(SpatialWord & { globalIndex: number })[]>([]);
 const scrollContainer = ref<HTMLDivElement | null>(null);
-const docImage = ref<HTMLImageElement | null>(null);
-const imageLoaded = ref(false);
-const imgWidth = ref(0);
-const imgHeight = ref(0);
+const canvasStack = ref<HTMLDivElement | null>(null);
+
+// --- Viewport & Zoom State ---
 const zoomLevel = ref(1);
 const ZOOM_MIN = 0.2;
-const ZOOM_MAX = 4;
+const ZOOM_MAX = 3.5;
 const ZOOM_STEP = 0.15;
-const totalRotation = ref(0);
+
+// --- Drag and Pointer State ---
+type DragMode = 'rescan' | 'block';
+const dragMode = ref<DragMode>('rescan');
+const isDragging = ref(false);
+const activeDragPageId = ref<string | null>(null);
+const pointerStartX = ref(0);
+const pointerStartY = ref(0);
+const pointerCurrentX = ref(0);
+const pointerCurrentY = ref(0);
+
+const isReScanning = ref(false);
+const scanPageId = ref<string | null>(null);
+const scanRect = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 
 // --- Redaction Color Palette ---
 const colorPalette = [
@@ -473,254 +625,59 @@ const colorPalette = [
 ];
 const selectedColor = ref<string>('#000000');
 
-// --- Custom Text Search ---
+// --- Custom Text Search & Data Keywords ---
 const customPiiText = ref('');
-
-// --- On-Demand Face Detection State ---
-const enableFaceDetection = ref(false);
-const isScanningFaces = ref(false);
-const activeFaceRegions = ref<DetectedRegion[]>(props.detectedRegions ? [...props.detectedRegions] : []);
-const disabledAutoRegions = ref<Set<number>>(new Set());
-
-// --- Manual Block & Drag Mode ---
-type DragMode = 'rescan' | 'block';
-const dragMode = ref<DragMode>('rescan');
-const manualRegions = ref<DetectedRegion[]>([]);
+const checkedKeywords = ref<Set<string>>(new Set());
 const manuallyRedactedIndices = ref<Set<number>>(new Set());
 const unredactedIndices = ref<Set<number>>(new Set());
 
-// --- Data-Driven Keywords from data.csv ---
-const checkedKeywords = ref<Set<string>>(new Set());
+// --- Face Detection State ---
+const enableFaceDetection = ref(false);
+const isScanningFaces = ref(false);
+const disabledAutoRegions = ref<Set<number>>(new Set());
+
+// --- Status Flash Notification ---
+const statusMessage = ref('');
+const statusMessageClass = ref('bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300');
+
+function showStatus(msg: string, type: 'info' | 'success' | 'warning' | 'error') {
+  statusMessage.value = msg;
+  const classes: Record<string, string> = {
+    info: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+    success: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+    warning: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
+    error: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  };
+  statusMessageClass.value = classes[type] || classes.info;
+
+  setTimeout(() => {
+    statusMessage.value = '';
+  }, 3500);
+}
 
 const foundSensitiveKeywords = computed<FoundKeywordItem[]>(() => {
   return extractFoundSensitiveKeywords(editableWords.value);
 });
 
-// Reactively synchronize words and image from parent
-watch(
-  () => props.imageUrl,
-  (newUrl) => {
-    currentImageUrl.value = newUrl;
-    totalRotation.value = 0;
-  }
-);
-
-watch(
-  () => props.words,
-  (newWords) => {
-    editableWords.value = JSON.parse(JSON.stringify(newWords || []));
-    manuallyRedactedIndices.value.clear();
-    unredactedIndices.value.clear();
-    foundSensitiveKeywords.value.forEach((item) => {
-      checkedKeywords.value.add(item.id);
-    });
-  },
-  { immediate: true, deep: true }
-);
-
-watch(
-  foundSensitiveKeywords,
-  (newList) => {
-    newList.forEach((item) => {
-      if (!checkedKeywords.value.has(item.id)) {
-        checkedKeywords.value.add(item.id);
-      }
-    });
-  },
-  { deep: true }
-);
-
-// --- Rotate Functions ---
-function rotateClockwise() {
-  if (!docImage.value || imgWidth.value === 0 || imgHeight.value === 0) return;
-  const oldW = imgWidth.value;
-  const oldH = imgHeight.value;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = oldH;
-  canvas.height = oldW;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  ctx.translate(oldH / 2, oldW / 2);
-  ctx.rotate((90 * Math.PI) / 180);
-  ctx.drawImage(docImage.value, -oldW / 2, -oldH / 2);
-
-  currentImageUrl.value = canvas.toDataURL('image/png');
-  imgWidth.value = oldH;
-  imgHeight.value = oldW;
-
-  editableWords.value = editableWords.value.map((w) => ({
-    ...w,
-    x: oldH - (w.y + w.height),
-    y: w.x,
-    width: w.height,
-    height: w.width,
-  }));
-
-  activeFaceRegions.value = activeFaceRegions.value.map((r) => ({
-    x: oldH - (r.y + r.h),
-    y: r.x,
-    w: r.h,
-    h: r.w,
-    score: r.score,
-  }));
-
-  manualRegions.value = manualRegions.value.map((r) => ({
-    x: oldH - (r.y + r.h),
-    y: r.x,
-    w: r.h,
-    h: r.w,
-  }));
-
-  totalRotation.value = (totalRotation.value + 90) % 360;
-  showStatus('Dokumen diputar 90° searah jarum jam.', 'info');
-}
-
-function rotateCounterClockwise() {
-  if (!docImage.value || imgWidth.value === 0 || imgHeight.value === 0) return;
-  const oldW = imgWidth.value;
-  const oldH = imgHeight.value;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = oldH;
-  canvas.height = oldW;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  ctx.translate(oldH / 2, oldW / 2);
-  ctx.rotate((-90 * Math.PI) / 180);
-  ctx.drawImage(docImage.value, -oldW / 2, -oldH / 2);
-
-  currentImageUrl.value = canvas.toDataURL('image/png');
-  imgWidth.value = oldH;
-  imgHeight.value = oldW;
-
-  editableWords.value = editableWords.value.map((w) => ({
-    ...w,
-    x: w.y,
-    y: oldW - (w.x + w.width),
-    width: w.height,
-    height: w.width,
-  }));
-
-  activeFaceRegions.value = activeFaceRegions.value.map((r) => ({
-    x: r.y,
-    y: oldW - (r.x + r.w),
-    w: r.h,
-    h: r.w,
-    score: r.score,
-  }));
-
-  manualRegions.value = manualRegions.value.map((r) => ({
-    x: r.y,
-    y: oldW - (r.x + r.w),
-    w: r.h,
-    h: r.w,
-  }));
-
-  totalRotation.value = (totalRotation.value + 270) % 360;
-  showStatus('Dokumen diputar 90° berlawanan arah jarum jam.', 'info');
-}
-
-const isScanningFull = ref(false);
-
-async function rescanFullDocument() {
-  if (!currentImageUrl.value) return;
-  isScanningFull.value = true;
-  showStatus('Memindai ulang seluruh teks pada orientasi gambar baru…', 'info');
-  try {
-    const res = await fetch(currentImageUrl.value);
-    const blob = await res.blob();
-    const words = await processDocument(blob);
-    if (words && words.length > 0) {
-      editableWords.value = words;
-      manuallyRedactedIndices.value.clear();
-      unredactedIndices.value.clear();
-      foundSensitiveKeywords.value.forEach((item) => {
-        checkedKeywords.value.add(item.id);
-      });
-      showStatus(`Berhasil mengekstrak ${words.length} kata!`, 'success');
-    } else {
-      showStatus('Tidak ditemukan teks tambahan pada orientasi ini.', 'warning');
-    }
-  } catch (err) {
-    console.error('Full rescan error:', err);
-    showStatus('Gagal memindai ulang dokumen.', 'error');
-  } finally {
-    isScanningFull.value = false;
-  }
-}
-
-function toggleKeywordSelection(id: string) {
-  const item = foundSensitiveKeywords.value.find((k) => k.id === id);
-  if (item) {
-    item.wordIndices.forEach((idx) => {
-      unredactedIndices.value.delete(idx);
-      manuallyRedactedIndices.value.delete(idx);
-    });
-  }
-
-  if (checkedKeywords.value.has(id)) {
-    checkedKeywords.value.delete(id);
-  } else {
-    checkedKeywords.value.add(id);
-  }
-}
-
-function selectAllKeywords() {
-  foundSensitiveKeywords.value.forEach((item) => {
-    checkedKeywords.value.add(item.id);
-    item.wordIndices.forEach((idx) => {
-      unredactedIndices.value.delete(idx);
-      manuallyRedactedIndices.value.delete(idx);
-    });
-  });
-}
-
-function deselectAllKeywords() {
-  foundSensitiveKeywords.value.forEach((item) => {
-    item.wordIndices.forEach((idx) => {
-      unredactedIndices.value.delete(idx);
-      manuallyRedactedIndices.value.delete(idx);
-    });
-  });
-  checkedKeywords.value.clear();
-}
-
-// Active PII Types including standalone patterns (phone, nik, dob, ttl, bpjs, npwp, bank, id, email)
 const activePiiTypes = computed<PIIType[]>(() => {
-  const types: PIIType[] = ['nik', 'phone', 'email', 'id', 'bank', 'password', 'dob', 'ttl', 'bpjs', 'npwp'];
+  const types: PIIType[] = ['nik', 'phone', 'email', 'id', 'bank', 'dob', 'ttl', 'bpjs', 'npwp', 'date'];
   if (customPiiText.value.trim()) types.push('custom');
   return types;
 });
 
-// Compute all word indices that match active/checked criteria
+// Precompute standalone concrete regex matches only when words or types change
+const standalonePiiIndices = computed<Set<number>>(() => {
+  return findContextualPIIWordIndices(
+    editableWords.value,
+    activePiiTypes.value,
+    customPiiText.value
+  );
+});
+
+// Fast Set union combining standalone regexes and checked keyword indices
 const autoDetectedPiiIndices = computed<Set<number>>(() => {
-  // 1. Gather all word indices that are tied to known keywords in foundSensitiveKeywords
-  const uncheckedKeywordIndices = new Set<number>();
+  const indices = new Set<number>(standalonePiiIndices.value);
 
-  for (const item of foundSensitiveKeywords.value) {
-    if (!checkedKeywords.value.has(item.id)) {
-      for (const idx of item.wordIndices) {
-        uncheckedKeywordIndices.add(idx);
-      }
-    }
-  }
-
-  // 2. Standalone contextual PII words (dates, standalone numbers, emails without keyword labels)
-  const standaloneIndices = findContextualPIIWordIndices(editableWords.value, activePiiTypes.value, customPiiText.value);
-
-  const indices = new Set<number>();
-
-  // Add standalone matches ONLY if they are NOT explicitly unchecked via a keyword checkbox
-  for (const idx of standaloneIndices) {
-    if (!uncheckedKeywordIndices.has(idx)) {
-      indices.add(idx);
-    }
-  }
-
-  // Add words associated ONLY with checked dynamic keywords
   for (const item of foundSensitiveKeywords.value) {
     if (checkedKeywords.value.has(item.id)) {
       for (const idx of item.wordIndices) {
@@ -729,7 +686,6 @@ const autoDetectedPiiIndices = computed<Set<number>>(() => {
     }
   }
 
-  // 3. Custom text search matching
   if (customPiiText.value.trim()) {
     const q = customPiiText.value.trim().toLowerCase();
     editableWords.value.forEach((w, i) => {
@@ -742,95 +698,229 @@ const autoDetectedPiiIndices = computed<Set<number>>(() => {
   return indices;
 });
 
-function isWordRedacted(index: number, _word?: SpatialWord): boolean {
-  if (unredactedIndices.value.has(index)) return false;
-  if (manuallyRedactedIndices.value.has(index)) return true;
-  return autoDetectedPiiIndices.value.has(index);
+function isWordRedacted(globalIndex: number, _word?: SpatialWord): boolean {
+  if (unredactedIndices.value.has(globalIndex)) return false;
+  if (manuallyRedactedIndices.value.has(globalIndex)) return true;
+  return autoDetectedPiiIndices.value.has(globalIndex);
 }
 
 const totalRedactedWordsCount = computed(() => {
-  return editableWords.value.filter((w, i) => isWordRedacted(i, w)).length;
+  return editableWords.value.filter((w) => isWordRedacted(w.globalIndex, w)).length;
 });
 
-// --- Face Detection On-Demand Toggle Handler ---
-async function handleFaceDetectionToggle() {
-  if (enableFaceDetection.value) {
-    if (activeFaceRegions.value.length === 0) {
-      isScanningFaces.value = true;
-      showStatus('Menjalankan deteksi wajah…', 'info');
-      try {
-        let faces: DetectedRegion[] = [];
-        if (docImage.value) {
-          faces = await detectFaces(docImage.value);
-        } else {
-          const res = await fetch(currentImageUrl.value);
-          const blob = await res.blob();
-          faces = await detectFaces(blob);
-        }
-        activeFaceRegions.value = faces;
-        disabledAutoRegions.value.clear();
-        if (faces.length > 0) {
-          showStatus(`Ditemukan ${faces.length} wajah pada dokumen.`, 'success');
-        } else {
-          showStatus('Tidak ditemukan wajah pada dokumen ini.', 'info');
-        }
-      } catch (err) {
-        showStatus('Gagal menjalankan deteksi wajah.', 'error');
-      } finally {
-        isScanningFaces.value = false;
-      }
-    } else {
-      disabledAutoRegions.value.clear();
-      showStatus('Deteksi wajah diaktifkan.', 'info');
+function syncEditableWords() {
+  const flattened: (SpatialWord & { globalIndex: number })[] = [];
+  let indexCounter = 0;
+
+  localPages.value.forEach((page) => {
+    (page.words || []).forEach((w) => {
+      flattened.push({
+        ...w,
+        pageIndex: page.pageIndex,
+        globalIndex: indexCounter++,
+      });
+    });
+  });
+
+  editableWords.value = flattened;
+  manuallyRedactedIndices.value.clear();
+  unredactedIndices.value.clear();
+
+  // Initialize checked keywords once on sync
+  const initialIds = new Set<string>();
+  foundSensitiveKeywords.value.forEach((item) => {
+    initialIds.add(item.id);
+  });
+  checkedKeywords.value = initialIds;
+}
+
+// Synchronize pages and words from props
+watch(
+  () => props.pages,
+  (newPages) => {
+    if (newPages && newPages.length > 0) {
+      localPages.value = JSON.parse(JSON.stringify(newPages));
+    } else if (props.imageUrl) {
+      localPages.value = [
+        {
+          id: 'page-1',
+          pageIndex: 1,
+          label: 'Halaman 1',
+          type: 'image',
+          previewUrl: props.imageUrl,
+          width: 800,
+          height: 1100,
+          rotation: 0,
+          words: props.words || [],
+          manualRegions: [],
+          faceRegions: props.detectedRegions || [],
+        },
+      ];
+    }
+    syncEditableWords();
+  },
+  { immediate: true, deep: true }
+);
+
+const allManualRegions = computed<DetectedRegion[]>(() => {
+  return localPages.value.flatMap((p) =>
+    (p.manualRegions || []).map((r) => ({ ...r, pageIndex: p.pageIndex }))
+  );
+});
+
+const allFaceRegions = computed<DetectedRegion[]>(() => {
+  return localPages.value.flatMap((p) =>
+    (p.faceRegions || []).map((r) => ({ ...r, pageIndex: p.pageIndex }))
+  );
+});
+
+function getWordsForPage(pageIndex: number) {
+  return editableWords.value.filter((w) => (w.pageIndex || 1) === pageIndex);
+}
+
+function getFaceRegionsForPage(pageIndex: number) {
+  return allFaceRegions.value
+    .map((r, i) => ({ ...r, globalIndex: i }))
+    .filter((r) => ((r as any).pageIndex || 1) === pageIndex);
+}
+
+function getManualRegionsForPage(pageIndex: number) {
+  const page = localPages.value.find((p) => p.pageIndex === pageIndex);
+  return page ? page.manualRegions || [] : [];
+}
+
+// --- Toggle / Selection Methods (Clean 0ms Instant Updates) ---
+function toggleKeywordSelection(id: string) {
+  const nextChecked = new Set(checkedKeywords.value);
+  const item = foundSensitiveKeywords.value.find((k) => k.id === id);
+
+  if (nextChecked.has(id)) {
+    nextChecked.delete(id);
+    if (item) {
+      item.wordIndices.forEach((idx) => {
+        unredactedIndices.value.add(idx);
+        manuallyRedactedIndices.value.delete(idx);
+      });
     }
   } else {
-    showStatus('Deteksi wajah dinonaktifkan.', 'info');
+    nextChecked.add(id);
+    if (item) {
+      item.wordIndices.forEach((idx) => {
+        unredactedIndices.value.delete(idx);
+        manuallyRedactedIndices.value.delete(idx);
+      });
+    }
   }
+
+  checkedKeywords.value = nextChecked;
 }
 
-// --- Drag-to-Select State ---
-const isDragging = ref(false);
-const dragStartX = ref(0);
-const dragStartY = ref(0);
-const dragEndX = ref(0);
-const dragEndY = ref(0);
-const mouseDownX = ref(0);
-const mouseDownY = ref(0);
-const isReScanning = ref(false);
-const scanRect = ref<{ x: number; y: number; w: number; h: number } | null>(null);
-const statusMessage = ref('');
-const statusMessageClass = ref('bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300');
+function selectAllKeywords() {
+  const nextChecked = new Set<string>();
+  foundSensitiveKeywords.value.forEach((item) => {
+    nextChecked.add(item.id);
+    item.wordIndices.forEach((idx) => {
+      unredactedIndices.value.delete(idx);
+      manuallyRedactedIndices.value.delete(idx);
+    });
+  });
+  checkedKeywords.value = nextChecked;
+}
 
-const CLICK_THRESHOLD = 5;
-const MIN_DRAG_SIZE = 15;
+function deselectAllKeywords() {
+  foundSensitiveKeywords.value.forEach((item) => {
+    item.wordIndices.forEach((idx) => {
+      unredactedIndices.value.add(idx);
+      manuallyRedactedIndices.value.delete(idx);
+    });
+  });
+  checkedKeywords.value = new Set();
+}
 
-const selectionRect = computed(() => {
-  if (!isDragging.value) return null;
-  const x = Math.min(dragStartX.value, dragEndX.value);
-  const y = Math.min(dragStartY.value, dragEndY.value);
-  const w = Math.abs(dragEndX.value - dragStartX.value);
-  const h = Math.abs(dragEndY.value - dragStartY.value);
-  return { x, y, w, h };
+function toggleDragMode() {
+  dragMode.value = dragMode.value === 'rescan' ? 'block' : 'rescan';
+}
+
+function toggleWord(globalIndex: number) {
+  const word = editableWords.value.find((w) => w.globalIndex === globalIndex);
+  if (!word) return;
+  const currentlyRedacted = isWordRedacted(globalIndex, word);
+
+  const nextUnredacted = new Set(unredactedIndices.value);
+  const nextManual = new Set(manuallyRedactedIndices.value);
+
+  if (currentlyRedacted) {
+    nextUnredacted.add(globalIndex);
+    nextManual.delete(globalIndex);
+    showStatus(`Batal menyensor "${word.text}"`, 'info');
+  } else {
+    nextUnredacted.delete(globalIndex);
+    nextManual.add(globalIndex);
+    showStatus(`Menyensor "${word.text}"`, 'success');
+  }
+
+  unredactedIndices.value = nextUnredacted;
+  manuallyRedactedIndices.value = nextManual;
+}
+
+interface ManualSelectedItem {
+  text: string;
+  count: number;
+  indices: number[];
+  pageNumbers: number[];
+}
+
+const manualSelectedWordsList = computed<ManualSelectedItem[]>(() => {
+  const map = new Map<string, { count: number; indices: number[]; pages: Set<number> }>();
+
+  manuallyRedactedIndices.value.forEach((idx) => {
+    const word = editableWords.value.find((w) => w.globalIndex === idx);
+    if (word && word.text.trim()) {
+      const key = word.text.trim();
+      if (!map.has(key)) {
+        map.set(key, { count: 0, indices: [], pages: new Set() });
+      }
+      const item = map.get(key)!;
+      item.count++;
+      item.indices.push(idx);
+      item.pages.add(word.pageIndex || 1);
+    }
+  });
+
+  return Array.from(map.entries()).map(([text, data]) => ({
+    text,
+    count: data.count,
+    indices: data.indices,
+    pageNumbers: Array.from(data.pages).sort((a, b) => a - b),
+  }));
 });
 
-const onImageLoad = () => {
-  if (docImage.value) {
-    imgWidth.value = docImage.value.naturalWidth;
-    imgHeight.value = docImage.value.naturalHeight;
-    imageLoaded.value = true;
-    zoomReset();
-  }
-};
+function removeManualSelectedWord(indices: number[]) {
+  const nextManual = new Set(manuallyRedactedIndices.value);
+  const nextUnredacted = new Set(unredactedIndices.value);
 
-function getRelativeCoords(e: MouseEvent): { x: number; y: number } {
-  if (!imageContainer.value) return { x: 0, y: 0 };
-  const rect = imageContainer.value.getBoundingClientRect();
-  return {
-    x: (e.clientX - rect.left) / zoomLevel.value,
-    y: (e.clientY - rect.top) / zoomLevel.value,
-  };
+  indices.forEach((idx) => {
+    nextManual.delete(idx);
+    nextUnredacted.add(idx);
+  });
+
+  manuallyRedactedIndices.value = nextManual;
+  unredactedIndices.value = nextUnredacted;
+  showStatus('Kata pilihan manual dibatalkan.', 'info');
 }
 
+function clearAllManualSelectedWords() {
+  const nextUnredacted = new Set(unredactedIndices.value);
+  manuallyRedactedIndices.value.forEach((idx) => {
+    nextUnredacted.add(idx);
+  });
+
+  unredactedIndices.value = nextUnredacted;
+  manuallyRedactedIndices.value = new Set();
+  showStatus('Semua pilihan kata manual dibersihkan.', 'info');
+}
+
+// --- Zoom & Navigation with Boundaries ---
 function onWheel(e: WheelEvent) {
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
@@ -848,143 +938,316 @@ function zoomOut() {
 }
 
 function zoomReset() {
-  if (!scrollContainer.value || imgWidth.value === 0) {
+  if (!scrollContainer.value || localPages.value.length === 0) {
     zoomLevel.value = 1;
     return;
   }
+  const maxPageWidth = Math.max(...localPages.value.map((p) => p.width || 800));
   const containerWidth = scrollContainer.value.clientWidth - 48;
-  zoomLevel.value = Math.min(1, Math.max(ZOOM_MIN, containerWidth / imgWidth.value));
+  zoomLevel.value = Math.min(1, Math.max(ZOOM_MIN, containerWidth / maxPageWidth));
 }
 
-function onMouseDown(e: MouseEvent) {
+// --- Rotation Methods (Mathematical 90° Transform without reloading) ---
+function rotatePageCoords(page: DocumentPageItem) {
+  const oldW = page.width;
+  const oldH = page.height;
+
+  // Swap canvas dimensions
+  page.width = oldH;
+  page.height = oldW;
+  page.rotation = ((page.rotation || 0) + 90) % 360;
+
+  // Transform words on this page
+  editableWords.value = editableWords.value.map((w) => {
+    if ((w.pageIndex || 1) !== page.pageIndex) return w;
+    return {
+      ...w,
+      x: oldH - (w.y + w.height),
+      y: w.x,
+      width: w.height,
+      height: w.width,
+    };
+  });
+
+  // Transform manual regions
+  page.manualRegions = (page.manualRegions || []).map((r) => ({
+    x: oldH - (r.y + r.h),
+    y: r.x,
+    w: r.h,
+    h: r.w,
+  }));
+
+  // Transform face regions
+  page.faceRegions = (page.faceRegions || []).map((r) => ({
+    x: oldH - (r.y + r.h),
+    y: r.x,
+    w: r.h,
+    h: r.w,
+    score: r.score,
+  }));
+
+  // Rotate preview image on an offscreen canvas
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = oldH;
+    canvas.height = oldW;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.translate(oldH / 2, oldW / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -oldW / 2, -oldH / 2);
+      page.previewUrl = canvas.toDataURL('image/png');
+    }
+  };
+  img.src = page.previewUrl;
+}
+
+function rotateSinglePage(pageId: string) {
+  const page = localPages.value.find((p) => p.id === pageId);
+  if (page) {
+    rotatePageCoords(page);
+    showStatus(`${page.label} diputar 90°.`, 'info');
+  }
+}
+
+function rotateAllPagesClockwise() {
+  localPages.value.forEach((page) => {
+    rotatePageCoords(page);
+  });
+  showStatus('Semua halaman diputar 90°.', 'info');
+}
+
+function removeSinglePage(pageId: string) {
+  const idx = localPages.value.findIndex((p) => p.id === pageId);
+  if (idx >= 0) {
+    const removed = localPages.value.splice(idx, 1)[0];
+    syncEditableWords();
+    showStatus(`${removed.label} telah dihapus.`, 'info');
+  }
+}
+
+function handleAdditionalFilesSelect(e: Event) {
+  const target = e.target as HTMLInputElement;
+  if (target.files && target.files.length > 0) {
+    const fileList = Array.from(target.files);
+    emit('add-images', fileList);
+    target.value = '';
+  }
+}
+
+// --- Face Detection Toggle ---
+async function handleFaceDetectionToggle() {
+  if (enableFaceDetection.value) {
+    if (allFaceRegions.value.length === 0) {
+      isScanningFaces.value = true;
+      showStatus('Menjalankan deteksi wajah…', 'info');
+      try {
+        for (const page of localPages.value) {
+          const img = new Image();
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            img.src = page.previewUrl;
+          });
+          const faces = await detectFaces(img);
+          page.faceRegions = faces;
+        }
+        disabledAutoRegions.value.clear();
+        const totalFaces = allFaceRegions.value.length;
+        if (totalFaces > 0) {
+          showStatus(`Ditemukan ${totalFaces} wajah pada dokumen.`, 'success');
+        } else {
+          showStatus('Tidak ditemukan wajah pada dokumen.', 'info');
+        }
+      } catch (err) {
+        showStatus('Gagal menjalankan deteksi wajah.', 'error');
+      } finally {
+        isScanningFaces.value = false;
+      }
+    } else {
+      disabledAutoRegions.value.clear();
+      showStatus('Deteksi wajah diaktifkan.', 'info');
+    }
+  } else {
+    showStatus('Deteksi wajah dinonaktifkan.', 'info');
+  }
+}
+
+// --- Pointer Events for Universal Touch & Mouse Drag ---
+const CLICK_THRESHOLD = 8;
+const MIN_DRAG_SIZE = 12;
+
+function getPageRelativeCoords(e: PointerEvent, pageEl: HTMLElement): { x: number; y: number } {
+  const rect = pageEl.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) / zoomLevel.value,
+    y: (e.clientY - rect.top) / zoomLevel.value,
+  };
+}
+
+const selectionRect = computed(() => {
+  if (!isDragging.value) return null;
+  const x = Math.min(pointerStartX.value, pointerCurrentX.value);
+  const y = Math.min(pointerStartY.value, pointerCurrentY.value);
+  const w = Math.abs(pointerCurrentX.value - pointerStartX.value);
+  const h = Math.abs(pointerCurrentY.value - pointerStartY.value);
+  return { x, y, w, h };
+});
+
+function onPointerDown(e: PointerEvent, page: DocumentPageItem) {
   if (isReScanning.value) return;
-  const coords = getRelativeCoords(e);
-  mouseDownX.value = coords.x;
-  mouseDownY.value = coords.y;
-  dragStartX.value = coords.x;
-  dragStartY.value = coords.y;
-  dragEndX.value = coords.x;
-  dragEndY.value = coords.y;
+  const pageEl = pageElements.value[page.id];
+  if (!pageEl) return;
+
+  activeDragPageId.value = page.id;
+  const coords = getPageRelativeCoords(e, pageEl);
+  pointerStartX.value = coords.x;
+  pointerStartY.value = coords.y;
+  pointerCurrentX.value = coords.x;
+  pointerCurrentY.value = coords.y;
   isDragging.value = true;
+
+  try {
+    pageEl.setPointerCapture(e.pointerId);
+  } catch (_) {}
 }
 
-function onMouseMove(e: MouseEvent) {
-  if (!isDragging.value) return;
-  const coords = getRelativeCoords(e);
-  dragEndX.value = Math.max(0, Math.min(coords.x, imgWidth.value));
-  dragEndY.value = Math.max(0, Math.min(coords.y, imgHeight.value));
+function onPointerMove(e: PointerEvent, page: DocumentPageItem) {
+  if (!isDragging.value || activeDragPageId.value !== page.id) return;
+  const pageEl = pageElements.value[page.id];
+  if (!pageEl) return;
+
+  const coords = getPageRelativeCoords(e, pageEl);
+  pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
+  pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
 }
 
-function findAutoRegionAtPoint(px: number, py: number): number {
-  if (!enableFaceDetection.value) return -1;
-  for (let i = activeFaceRegions.value.length - 1; i >= 0; i--) {
-    const r = activeFaceRegions.value[i];
-    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
-      return i;
-    }
-  }
-  return -1;
+function onPointerCancel() {
+  isDragging.value = false;
+  activeDragPageId.value = null;
 }
 
-function findManualRegionAtPoint(px: number, py: number): number {
-  for (let i = manualRegions.value.length - 1; i >= 0; i--) {
-    const r = manualRegions.value[i];
-    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-async function onMouseUp(e: MouseEvent) {
-  if (!isDragging.value) return;
+async function onPointerUp(e: PointerEvent, page: DocumentPageItem) {
+  if (!isDragging.value || activeDragPageId.value !== page.id) return;
   isDragging.value = false;
 
-  const coords = getRelativeCoords(e);
-  const dx = Math.abs(coords.x - mouseDownX.value);
-  const dy = Math.abs(coords.y - mouseDownY.value);
+  const pageEl = pageElements.value[page.id];
+  if (pageEl) {
+    try {
+      pageEl.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+  }
 
-  // Click (not drag) — toggle regions or words
+  const coords = pageEl ? getPageRelativeCoords(e, pageEl) : { x: pointerCurrentX.value, y: pointerCurrentY.value };
+  const dx = Math.abs(coords.x - pointerStartX.value);
+  const dy = Math.abs(coords.y - pointerStartY.value);
+
+  // Click / Tap (not drag)
   if (dx < CLICK_THRESHOLD && dy < CLICK_THRESHOLD) {
-    const manualIdx = findManualRegionAtPoint(coords.x, coords.y);
-    if (manualIdx >= 0) {
-      manualRegions.value.splice(manualIdx, 1);
-      showStatus('Blok manual dihapus.', 'info');
-      return;
-    }
+    activeDragPageId.value = null;
 
-    const autoIdx = findAutoRegionAtPoint(coords.x, coords.y);
-    if (autoIdx >= 0) {
-      if (disabledAutoRegions.value.has(autoIdx)) {
-        disabledAutoRegions.value.delete(autoIdx);
-        showStatus('Sensor wajah diaktifkan kembali.', 'success');
-      } else {
-        disabledAutoRegions.value.add(autoIdx);
-        showStatus('Sensor wajah dinonaktifkan.', 'info');
+    // Check manual region tap to delete
+    const manualList = page.manualRegions || [];
+    for (let i = manualList.length - 1; i >= 0; i--) {
+      const r = manualList[i];
+      if (coords.x >= r.x && coords.x <= r.x + r.w && coords.y >= r.y && coords.y <= r.y + r.h) {
+        page.manualRegions.splice(i, 1);
+        showStatus('Blok manual dihapus.', 'info');
+        return;
       }
-      return;
     }
 
-    const clickedIndex = findWordAtPoint(coords.x, coords.y);
-    if (clickedIndex >= 0) {
-      handleWordClick(clickedIndex);
+    // Check word tap to toggle redaction
+    const pageWords = getWordsForPage(page.pageIndex);
+    for (let i = pageWords.length - 1; i >= 0; i--) {
+      const w = pageWords[i];
+      if (coords.x >= w.x && coords.x <= w.x + w.width && coords.y >= w.y && coords.y <= w.y + w.height) {
+        const currentlyRedacted = isWordRedacted(w.globalIndex, w);
+        if (currentlyRedacted) {
+          unredactedIndices.value.add(w.globalIndex);
+          manuallyRedactedIndices.value.delete(w.globalIndex);
+          showStatus(`Batal menyensor "${w.text}"`, 'info');
+        } else {
+          unredactedIndices.value.delete(w.globalIndex);
+          manuallyRedactedIndices.value.add(w.globalIndex);
+          showStatus(`Menyensor "${w.text}"`, 'success');
+        }
+        return;
+      }
     }
     return;
   }
 
+  // Drag completed
   const rect = {
-    x: Math.min(dragStartX.value, coords.x),
-    y: Math.min(dragStartY.value, coords.y),
-    w: Math.abs(coords.x - dragStartX.value),
-    h: Math.abs(coords.y - dragStartY.value),
+    x: Math.min(pointerStartX.value, coords.x),
+    y: Math.min(pointerStartY.value, coords.y),
+    w: Math.abs(coords.x - pointerStartX.value),
+    h: Math.abs(coords.y - pointerStartY.value),
   };
+
+  activeDragPageId.value = null;
 
   if (rect.w < MIN_DRAG_SIZE || rect.h < MIN_DRAG_SIZE) {
     showStatus('Area terlalu kecil. Silakan drag area yang lebih luas.', 'warning');
     return;
   }
 
-  // --- Mode Kanvas Manual (Zero-OCR direct block) ---
-  if (dragMode.value === 'block') {
-    manualRegions.value.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
-    showStatus('Area berhasil diblokir manual untuk disensor.', 'success');
+  // For text-pdf: check if drag intersects existing words or creates manual block
+  if (props.documentType === 'text-pdf') {
+    const pageWords = getWordsForPage(page.pageIndex);
+    const intersectedWords = pageWords.filter(
+      (w) =>
+        w.x + w.width >= rect.x &&
+        w.x <= rect.x + rect.w &&
+        w.y + w.height >= rect.y &&
+        w.y <= rect.y + rect.h
+    );
+
+    if (intersectedWords.length > 0) {
+      const nextUnredacted = new Set(unredactedIndices.value);
+      const nextManual = new Set(manuallyRedactedIndices.value);
+      intersectedWords.forEach((w) => {
+        nextUnredacted.delete(w.globalIndex);
+        nextManual.add(w.globalIndex);
+      });
+      unredactedIndices.value = nextUnredacted;
+      manuallyRedactedIndices.value = nextManual;
+      showStatus(`${intersectedWords.length} kata disensor.`, 'success');
+      return;
+    }
+
+    if (!page.manualRegions) page.manualRegions = [];
+    page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+    showStatus('Area berhasil diblokir manual.', 'success');
     return;
   }
 
-  // --- Mode Re-scan OCR ---
-  await runRegionScan(rect);
-}
-
-function findWordAtPoint(px: number, py: number): number {
-  for (let i = editableWords.value.length - 1; i >= 0; i--) {
-    const w = editableWords.value[i];
-    if (px >= w.x && px <= w.x + w.width && py >= w.y && py <= w.y + w.height) {
-      return i;
-    }
+  // Block Mode
+  if (dragMode.value === 'block') {
+    if (!page.manualRegions) page.manualRegions = [];
+    page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+    showStatus('Area berhasil diblokir manual.', 'success');
+    return;
   }
-  return -1;
+
+  // Rescan OCR Mode
+  await runPageRegionScan(page, rect);
 }
 
-function handleWordClick(index: number) {
-  const currentlyRedacted = isWordRedacted(index, editableWords.value[index]);
-  if (currentlyRedacted) {
-    unredactedIndices.value.add(index);
-    manuallyRedactedIndices.value.delete(index);
-    showStatus(`Batal menyensor "${editableWords.value[index].text}"`, 'info');
-  } else {
-    unredactedIndices.value.delete(index);
-    manuallyRedactedIndices.value.add(index);
-    showStatus(`Menyensor "${editableWords.value[index].text}"`, 'success');
-  }
-}
-
-async function runRegionScan(rect: { x: number; y: number; w: number; h: number }) {
+async function runPageRegionScan(
+  page: DocumentPageItem,
+  rect: { x: number; y: number; w: number; h: number }
+) {
   isReScanning.value = true;
+  scanPageId.value = page.id;
   scanRect.value = rect;
   showStatus('Memindai teks pada area pilihan…', 'info');
 
   try {
-    const newWords = await processRegion(currentImageUrl.value, rect, editableWords.value);
+    const pageExistingWords = getWordsForPage(page.pageIndex);
+    const newWords = await processRegion(page.previewUrl, rect, pageExistingWords);
 
     if (newWords.length === 0) {
       showStatus('Tidak ditemukan teks tambahan pada area ini.', 'warning');
@@ -992,7 +1255,7 @@ async function runRegionScan(rect: { x: number; y: number; w: number; h: number 
     }
 
     const uniqueWords = newWords.filter((nw) => {
-      return !editableWords.value.some((ew) => {
+      return !pageExistingWords.some((ew) => {
         const overlapX = Math.max(0, Math.min(ew.x + ew.width, nw.x + nw.width) - Math.max(ew.x, nw.x));
         const overlapY = Math.max(0, Math.min(ew.y + ew.height, nw.y + nw.height) - Math.max(ew.y, nw.y));
         const overlapArea = overlapX * overlapY;
@@ -1006,58 +1269,49 @@ async function runRegionScan(rect: { x: number; y: number; w: number; h: number 
       return;
     }
 
-    editableWords.value.push(...uniqueWords);
+    // Add new words to this page
+    if (!page.words) page.words = [];
+    page.words.push(...uniqueWords.map((w) => ({ ...w, pageIndex: page.pageIndex })));
 
-    foundSensitiveKeywords.value.forEach((item) => {
-      if (!checkedKeywords.value.has(item.id)) {
-        checkedKeywords.value.add(item.id);
-      }
-    });
-
+    syncEditableWords();
     showStatus(`Berhasil mengekstrak ${uniqueWords.length} kata baru!`, 'success');
   } catch (error) {
     console.error('Region scan failed:', error);
-    showStatus('Gagal memindai area. Silakan coba lagi.', 'error');
+    showStatus('Gagal memindai area.', 'error');
   } finally {
     isReScanning.value = false;
+    scanPageId.value = null;
     scanRect.value = null;
   }
 }
 
-function showStatus(msg: string, type: 'info' | 'success' | 'warning' | 'error') {
-  statusMessage.value = msg;
-  const classes: Record<string, string> = {
-    info: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-    success: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-    warning: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
-    error: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-  };
-  statusMessageClass.value = classes[type] || classes.info;
-
-  setTimeout(() => {
-    statusMessage.value = '';
-  }, 4000);
-}
-
-const handleConfirm = () => {
-  const wordsWithRedaction = editableWords.value.map((w, i) => ({
+// --- Confirm & Emit Handler ---
+function handleConfirm() {
+  const wordsWithRedaction = editableWords.value.map((w) => ({
     ...w,
-    forceRedact: isWordRedacted(i, w),
+    forceRedact: isWordRedacted(w.globalIndex, w),
   }));
 
-  const activeAutoRegions = enableFaceDetection.value
-    ? activeFaceRegions.value.filter((_, i) => !disabledAutoRegions.value.has(i))
+  const allManual = allManualRegions.value;
+  const activeFaces = enableFaceDetection.value
+    ? allFaceRegions.value.filter((_, i) => !disabledAutoRegions.value.has(i))
     : [];
 
-  const allRegions = [...activeAutoRegions, ...manualRegions.value];
+  const allRegions = [...activeFaces, ...allManual];
 
   emit('confirm', {
+    pages: localPages.value,
     words: wordsWithRedaction,
     piiTypes: activePiiTypes.value,
     customText: customPiiText.value,
     regions: allRegions,
     redactionColor: selectedColor.value,
-    rotatedImageUrl: currentImageUrl.value,
   });
-};
+}
+
+onMounted(() => {
+  setTimeout(() => {
+    zoomReset();
+  }, 100);
+});
 </script>
