@@ -33,58 +33,9 @@ Cherdocky dirancang dengan prinsip **100% Offline-First Client-Side Execution**.
 
 ## 2. Alur Kerja End-to-End (Workflow Flowchart)
 
-```mermaid
-flowchart TD
-    Start([User Mengunggah File]) --> CheckType{Tipe File?}
-    
-    %% Alur Gambar
-    CheckType -->|Gambar JPG/PNG/WebP| ImgBatch[Dukungan Multi-Gambar / Batch]
-    ImgBatch --> ImgIngest[Load Image ke Canvas & Normalisasi Dimensi]
-    ImgIngest --> RunParallel1[Proses Paralel: OCR Tesseract + MediaPipe Face AI]
-    
-    %% Alur PDF
-    CheckType -->|File PDF| CheckPdf{Inspeksi Karakter & Layer}
-    CheckPdf -->|Memiliki Text Layer| ModalChoice{Dialog Pilihan User}
-    ModalChoice -->|Mode Cepat / Teks Asli| PdfTextExtract[pdfjs-dist: Ekstraksi Koordinat Vektor Teks]
-    ModalChoice -->|Mode OCR Mendalam| PdfRasterize[Rasterisasi Halaman ke Canvas Citra]
-    CheckPdf -->|Hasil Scan / Murni Citra| PdfRasterize
-    
-    PdfTextExtract --> RasterizeBase[Rasterisasi Base Preview Halaman]
-    PdfRasterize --> RunParallel1
-    RasterizeBase --> FaceDetectOnly[MediaPipe Face AI pada Halaman]
-    
-    %% Pipeline Deteksi PII
-    RunParallel1 --> PiiEngine[Eksekusi PII Detector Engine]
-    FaceDetectOnly --> PiiEngine
-    
-    PiiEngine --> PiiMatch[1. Regex Standar: NIK, HP, Email, NPWP, BPJS, Rekening, dll.]
-    PiiEngine --> ContextMatch[2. Contextual Label Proximity: NIK/Nama/TTL/Alamat/dll.]
-    PiiEngine --> CustomMatch[3. User Custom Keywords]
-    
-    PiiMatch & ContextMatch & CustomMatch --> BuildModel[Susun DocumentPageItem & Words Array]
-    
-    %% Tahap Interaktif
-    BuildModel --> VerificationUI[Tampilkan UI Verifikasi Interaktif]
-    
-    VerificationUI --> UserAction{Aksi Pengguna}
-    UserAction -->|Toggle Sensor| ToggleWord[Klik Kotak Kata / Wajah untuk Aktif/Nonaktif]
-    UserAction -->|Mode Blokir| DragBlock[Drag Kotak Sensor Manual pada Canvas]
-    UserAction -->|Mode Re-scan| DragRescan[Drag Area Buram -> Contrast Boost -> Re-OCR]
-    UserAction -->|Rotasi Halaman| RotatePage[Putar 90° & Transformasi Koordinat BBox]
-    UserAction -->|Tambah/Hapus Halaman| ModifyPages[Manajemen Multi Halaman Dokumen]
-    
-    ToggleWord & DragBlock & DragRescan & RotatePage & ModifyPages --> VerificationUI
-    
-    %% Ekspor Dokumen
-    UserAction -->|Klik Konfirmasi & Ekspor| ExportSettings[Pilih Format: Flat PDF / PNG / JPEG / ZIP]
-    ExportSettings --> Redactor[Eksekusi Destructive Redactor]
-    
-    Redactor --> CanvasDraw[1. Render Citra Asli ke Offscreen Canvas]
-    CanvasDraw --> PixelWipe[2. ctx.fillRect Permanen Menimpa Nilai RGB Pixel RAM]
-    PixelWipe --> StripMeta[3. Hapus Metadata EXIF]
-    StripMeta --> FlatPack[4. Bungkus ke Flat PDF tanpa Text Layer atau Image Blob]
-    FlatPack --> Download([File Bersih Siap Diunduh])
-```
+<p align="center">
+  <img src="public/workflow_flowchart.svg" alt="Diagram Workflow Flowchart Cherdocky" width="100%" />
+</p>
 
 ---
 

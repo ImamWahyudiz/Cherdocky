@@ -1,0 +1,207 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 1120" width="100%" height="100%" style="background:#0f172a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; border-radius:12px;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="blueCard" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Node Color Accents -->
+    <linearGradient id="startGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+
+    <!-- Filters & Markers -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#8b5cf6"/>
+    </marker>
+    <marker id="arrow-emerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10b981"/>
+    </marker>
+  </defs>
+
+  <!-- Container Box -->
+  <rect x="15" y="15" width="950" height="1090" rx="10" fill="#1e293b" fill-opacity="0.3" stroke="#334155" stroke-width="1.5" />
+  <text x="490" y="45" fill="#f8fafc" font-size="16" font-weight="700" text-anchor="middle">CHERDOCKY END-TO-END WORKFLOW PIPELINE</text>
+
+  <!-- STAGE 1: INGESTION & ROUTING -->
+  <!-- Start Node -->
+  <g filter="url(#shadow)">
+    <rect x="350" y="70" width="280" height="42" rx="21" fill="url(#startGrad)"/>
+    <text x="490" y="96" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle">1. User Upload File (PDF / Gambar)</text>
+  </g>
+
+  <path d="M 490 112 L 490 135" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Decision Node: Tipe File -->
+  <g filter="url(#shadow)">
+    <polygon points="490,135 640,170 490,205 340,170" fill="#0f172a" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="490" y="174" fill="#60a5fa" font-size="13" font-weight="700" text-anchor="middle">Cek Format Input?</text>
+  </g>
+
+  <!-- Branch Left: Image Files -->
+  <path d="M 340 170 L 190 170 L 190 230" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="250" y="162" fill="#94a3b8" font-size="11" font-weight="600">Gambar JPG/PNG</text>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="230" width="240" height="65" rx="8" fill="url(#blueCard)" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="190" y="255" fill="#f8fafc" font-size="12.5" font-weight="700" text-anchor="middle">Multi-Image Batch Ingestion</text>
+    <text x="190" y="274" fill="#94a3b8" font-size="11" text-anchor="middle">Preload Dimension &amp; Normalization</text>
+  </g>
+
+  <!-- Branch Right: PDF Files -->
+  <path d="M 640 170 L 790 170 L 790 230" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="705" y="162" fill="#94a3b8" font-size="11" font-weight="600">Berkas PDF</text>
+
+  <g filter="url(#shadow)">
+    <rect x="670" y="230" width="240" height="65" rx="8" fill="url(#blueCard)" stroke="#8b5cf6" stroke-width="1.2"/>
+    <text x="790" y="253" fill="#f8fafc" font-size="12" font-weight="700" text-anchor="middle">Inspeksi Text Layer PDF</text>
+    <text x="790" y="271" fill="#a78bfa" font-size="10.5" text-anchor="middle">pdfjs-dist inspectPdfContent()</text>
+  </g>
+
+  <path d="M 790 295 L 790 320" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Decision Node: Native PDF text choice modal -->
+  <g filter="url(#shadow)">
+    <polygon points="790,320 910,350 790,380 670,350" fill="#0f172a" stroke="#8b5cf6" stroke-width="1.5"/>
+    <text x="790" y="354" fill="#c4b5fd" font-size="11.5" font-weight="700" text-anchor="middle">Ada Text Layer?</text>
+  </g>
+
+  <!-- PDF Option A: Fast Text PDF Mode -->
+  <path d="M 670 350 L 590 350 L 590 400" stroke="#8b5cf6" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+  <text x="625" y="342" fill="#a78bfa" font-size="10" font-weight="600">Ya (Ekstraksi Teks)</text>
+
+  <g filter="url(#shadow)">
+    <rect x="490" y="400" width="200" height="55" rx="6" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.2"/>
+    <text x="590" y="423" fill="#f8fafc" font-size="11.5" font-weight="700" text-anchor="middle">Fast Matrix Text Extraction</text>
+    <text x="590" y="440" fill="#c4b5fd" font-size="10" text-anchor="middle">Ekstraksi Vektor PDF &lt;1d/hal</text>
+  </g>
+
+  <!-- PDF Option B: OCR Scanned PDF Mode -->
+  <path d="M 790 380 L 790 400" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="800" y="393" fill="#94a3b8" font-size="10" font-weight="600">Tidak (PDF Scan)</text>
+
+  <g filter="url(#shadow)">
+    <rect x="715" y="400" width="210" height="55" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1.2"/>
+    <text x="820" y="423" fill="#f8fafc" font-size="11.5" font-weight="700" text-anchor="middle">Rasterisasi PDF ke Canvas</text>
+    <text x="820" y="440" fill="#94a3b8" font-size="10" text-anchor="middle">Raster Scale 2x per Halaman</text>
+  </g>
+
+  <!-- Pathway Connectors to STAGE 2 -->
+  <path d="M 190 295 L 190 475 L 340 475 L 340 495" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 820 455 L 820 475 L 640 475 L 640 495" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 590 455 L 590 495" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="3,3" fill="none" marker-end="url(#arrow-purple)"/>
+
+  <!-- STAGE 2: PARALLEL AI ENGINES & PII MATCHING -->
+  <rect x="40" y="495" width="900" height="205" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  <text x="60" y="520" fill="#38bdf8" font-size="12.5" font-weight="700">2. PIPELINE PEMROSESAN OTOMATIS &amp; PARALEL AI ENGINES</text>
+
+  <!-- Engine Box 1: OCR -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="535" width="270" height="75" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="1.2"/>
+    <text x="195" y="559" fill="#f8fafc" font-size="12.5" font-weight="700" text-anchor="middle">Tesseract.js Spatial OCR</text>
+    <text x="195" y="578" fill="#94a3b8" font-size="11" text-anchor="middle">Word Bounding Box &amp; Confidence</text>
+    <text x="195" y="595" fill="#60a5fa" font-size="10.5" text-anchor="middle">Fuzzy Digit Normalization (O→0, I→1, S→5, B→8)</text>
+  </g>
+
+  <!-- Engine Box 2: Face AI -->
+  <g filter="url(#shadow)">
+    <rect x="355" y="535" width="270" height="75" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1.2"/>
+    <text x="490" y="559" fill="#f8fafc" font-size="12.5" font-weight="700" text-anchor="middle">MediaPipe BlazeFace AI</text>
+    <text x="490" y="578" fill="#94a3b8" font-size="11" text-anchor="middle">On-Device Sub-pixel Detection</text>
+    <text x="490" y="595" fill="#34d399" font-size="10.5" text-anchor="middle">Pasfoto KTP / SIM / ID Card Portrait</text>
+  </g>
+
+  <!-- Engine Box 3: PII Detector -->
+  <g filter="url(#shadow)">
+    <rect x="650" y="535" width="270" height="75" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="1.2"/>
+    <text x="785" y="559" fill="#f8fafc" font-size="12.5" font-weight="700" text-anchor="middle">Spatial PII Pattern Matching</text>
+    <text x="785" y="578" fill="#94a3b8" font-size="11" text-anchor="middle">NIK, HP, Email, TTL, NPWP, BPJS, Bank</text>
+    <text x="785" y="595" fill="#fbbf24" font-size="10.5" text-anchor="middle">Contextual Label &amp; Custom Keywords</text>
+  </g>
+
+  <!-- Merge Node: State Aggregator -->
+  <g filter="url(#shadow)">
+    <rect x="240" y="635" width="500" height="45" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="490" y="662" fill="#e2e8f0" font-size="12" font-weight="600" text-anchor="middle">Agregasi State Model DocumentPageItem (Words Array + Region Objects)</text>
+  </g>
+
+  <path d="M 195 610 L 195 657 L 240 657" stroke="#64748b" stroke-width="1.5" fill="none"/>
+  <path d="M 490 610 L 490 635" stroke="#64748b" stroke-width="1.5" fill="none"/>
+  <path d="M 785 610 L 785 657 L 740 657" stroke="#64748b" stroke-width="1.5" fill="none"/>
+
+  <path d="M 490 680 L 490 715" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- STAGE 3: INTERACTIVE CANVAS UI -->
+  <rect x="40" y="715" width="900" height="185" rx="10" fill="#0f172a" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="60" y="740" fill="#a78bfa" font-size="12.5" font-weight="700">3. RUANG VERIFIKASI &amp; KOREKSI INTERAKTIF (DocumentVerification.vue)</text>
+
+  <g filter="url(#shadow)">
+    <!-- Interactive Actions -->
+    <rect x="60" y="760" width="195" height="60" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="157" y="784" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Click-to-Toggle</text>
+    <text x="157" y="802" fill="#94a3b8" font-size="10.5" text-anchor="middle">Klik Kotak Kata / Wajah</text>
+
+    <rect x="275" y="760" width="195" height="60" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="372" y="784" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Mode Blokir Manual</text>
+    <text x="372" y="802" fill="#94a3b8" font-size="10.5" text-anchor="middle">Drag Area Sensor Bebas</text>
+
+    <rect x="490" y="760" width="195" height="60" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="587" y="784" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Mode Scan Area</text>
+    <text x="587" y="802" fill="#94a3b8" font-size="10.5" text-anchor="middle">Re-OCR Contrast Boost</text>
+
+    <rect x="705" y="760" width="195" height="60" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="802" y="784" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Rotasi &amp; Multi-Page</text>
+    <text x="802" y="802" fill="#94a3b8" font-size="10.5" text-anchor="middle">Putar 90° &amp; Reorder Sheet</text>
+  </g>
+
+  <!-- Interactive Loop Line -->
+  <path d="M 900 790 C 940 790, 940 845, 490 845 C 40 845, 40 790, 60 790" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="4,4" fill="none"/>
+  <text x="490" y="875" fill="#cbd5e1" font-size="11" text-anchor="middle">Pengguna Memvalidasi &amp; Menyesuaikan Area Sensor Real-time</text>
+
+  <path d="M 490 900 L 490 935" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- STAGE 4: DESTRUCTIVE REDACTION & EXPORT -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="935" width="900" height="105" rx="10" fill="#0f172a" stroke="#ef4444" stroke-width="1.5"/>
+    <rect x="40" y="935" width="8" height="105" rx="4" fill="#ef4444"/>
+    <text x="65" y="963" fill="#f8fafc" font-size="14" font-weight="700">4. DESTRUCTIVE REDACTION &amp; RE-EXPORT ENGINE (redactor.ts)</text>
+    <text x="65" y="985" fill="#cbd5e1" font-size="11.5">• Physical Pixel Overwrite: Menimpa nilai byte RGB asli di RAM canvas secara solid (ctx.fillRect RGB: 0,0,0,255)</text>
+    <text x="65" y="1003" fill="#cbd5e1" font-size="11.5">• Metadata Stripping: Membersihkan tag GPS &amp; EXIF kamera dari file keluaran</text>
+    <text x="65" y="1021" fill="#cbd5e1" font-size="11.5">• Flat Re-assembly: Membungkus canvas bersih menjadi Flat PDF (Zero Vector Text Layer) atau Multi-Image ZIP</text>
+  </g>
+
+  <path d="M 490 1040 L 490 1065" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+  <!-- End Node: Download -->
+  <g filter="url(#shadow)">
+    <rect x="330" y="1065" width="320" height="42" rx="21" fill="url(#emeraldGrad)"/>
+    <text x="490" y="1091" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle">File Clean Output Siap Diunduh</text>
+  </g>
+</svg>
