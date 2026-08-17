@@ -1,548 +1,817 @@
 <template>
-  <div class="fixed inset-0 w-full h-full bg-gray-950 z-50 flex flex-col overflow-hidden select-none">
-    <!-- Top Header Bar -->
-    <header class="px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex justify-between items-center z-20 flex-shrink-0 shadow-sm">
-      <!-- Left Controls: 3 uniform buttons on mobile -->
-      <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- Desktop Title -->
-        <div class="hidden md:flex items-center gap-2 mr-2">
-          <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-          <h2 class="text-sm lg:text-base font-bold text-gray-900 dark:text-white">
-            Verifikasi & Sensor Dokumen
-          </h2>
-          <span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium uppercase">
-            {{ documentType === 'text-pdf' ? 'PDF Teks Asli' : documentType === 'image-pdf' ? 'PDF Scan (OCR)' : 'Gambar / Foto' }}
-          </span>
-        </div>
-
-        <!-- 1. Rotate Button (Uniform size on mobile) -->
-        <button
-          type="button"
-          @click="rotateAllPagesClockwise"
-          class="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
-          title="Putar Dokumen 90°"
-        >
-          <RotateCw class="w-4 h-4 text-gray-600 dark:text-gray-300" />
-          <span class="hidden sm:inline">Putar</span>
-        </button>
-
-        <!-- 2. Canvas Mode Toggle Button (Only for image / scanned documents) -->
-        <button
-          v-if="documentType !== 'text-pdf'"
-          type="button"
-          @click="toggleDragMode"
-          class="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 text-xs font-medium rounded-lg transition-colors border flex items-center justify-center gap-1.5 shadow-sm"
-          :class="dragMode === 'block'
-            ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800'
-            : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'"
-          :title="dragMode === 'block' ? 'Mode: Blokir Manual (Klik untuk ubah ke Scan)' : 'Mode: Scan Area (Klik untuk ubah ke Blokir)'"
-        >
-          <Square v-if="dragMode === 'block'" class="w-4 h-4 text-red-600 dark:text-red-400" />
-          <Scan v-else class="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          <span class="hidden sm:inline">{{ dragMode === 'block' ? 'Mode Blok' : 'Mode Scan' }}</span>
-        </button>
-
-        <!-- 3. Fit / Reset Zoom Button (Uniform size on mobile) -->
-        <button
-          type="button"
-          @click="zoomReset"
-          class="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
-          title="Sesuaikan Ukuran Layar (Fit)"
-        >
-          <Maximize2 class="w-4 h-4 text-gray-600 dark:text-gray-300" />
-          <span class="hidden sm:inline">Pas Layar</span>
-        </button>
-
-        <!-- Add Image Button (if image mode) -->
-        <label
-          v-if="documentType === 'image'"
-          class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg transition-colors border border-purple-200 dark:border-purple-800 cursor-pointer shadow-sm"
-          title="Tambah Gambar Baru"
-        >
-          <Plus class="w-4 h-4 text-purple-600 dark:text-purple-400" />
-          <span>Tambah Gambar</span>
-          <input
-            type="file"
-            multiple
-            accept="image/jpeg, image/png"
-            class="hidden"
-            @change="handleAdditionalFilesSelect"
-          />
-        </label>
+  <div class="fixed inset-0 w-full h-full bg-gray-950 z-50 flex flex-col overflow-hidden select-none text-gray-200 verification-theme">
+    <!-- Top Header Bar: Sleek Dark Theme (Clean & Minimal: Title, Status, Cancel & Export) -->
+    <header class="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-800 bg-gray-900 flex justify-between items-center z-20 flex-shrink-0 shadow-md">
+      <!-- Left: Title & Badge -->
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.7)]"></span>
+        <h2 class="hidden sm:inline text-sm sm:text-base font-bold text-white tracking-tight">
+          Verifikasi &amp; Sensor Dokumen
+        </h2>
+        <span class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 font-semibold uppercase tracking-wider">
+          {{ documentType === 'text-pdf' ? 'PDF Teks' : documentType === 'image-pdf' ? 'PDF Scan' : 'Gambar' }}
+        </span>
       </div>
 
-      <!-- Right Controls: 2 buttons (Cancel is uniform, Confirm is prominent) -->
-      <div class="flex items-center gap-1.5 sm:gap-2">
-        <!-- 4. Cancel Button (Uniform size on mobile, text on sm+) -->
+      <!-- Right: Action Buttons (Cancel & Confirm Export) -->
+      <div class="flex items-center gap-2">
+        <!-- Cancel Button -->
         <button
           type="button"
           @click="$emit('cancel')"
-          class="w-9 h-9 sm:w-auto sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-300 dark:border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
+          class="h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 active:scale-95 rounded-lg transition-colors border border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
           title="Batal dan kembali ke beranda"
         >
-          <X class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-          <span class="hidden sm:inline">Batal</span>
+          <X class="w-4 h-4 text-gray-400" />
+          <span class="hidden xs:inline">Batal</span>
         </button>
 
-        <!-- 5. Confirm & Export Button (Distinct, prominent styling) -->
+        <!-- Confirm & Export Button -->
         <button
           type="button"
           @click="handleConfirm"
-          class="h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+          class="h-8 sm:h-9 px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
           title="Konfirmasi sensor dan ekspor dokumen"
         >
           <Check class="w-4 h-4 text-white stroke-[2.5]" />
-          <span>Konfirmasi & Ekspor</span>
+          <span>Konfirmasi &amp; Ekspor</span>
         </button>
       </div>
     </header>
 
-    <!-- Main Workspace Area -->
-    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-      <!-- Document Canvas Viewport (Scrollable & Bounded) -->
-      <main
-        ref="scrollContainer"
-        class="overflow-auto p-3 sm:p-6 relative bg-gray-950 flex-1 h-[48vh] sm:h-[54vh] lg:h-auto border-b lg:border-b-0 border-gray-800 flex justify-center items-start touch-none"
-        :class="dragMode === 'block' ? 'cursor-crosshair' : 'cursor-default'"
-        @wheel="onWheel"
-      >
-        <!-- Canvas Transform Container with Bounded Width -->
-        <div
-          ref="canvasStack"
-          class="flex flex-col items-center gap-6 py-4 transition-transform duration-75 origin-top"
-          :style="{
-            transform: `scale(${zoomLevel})`,
-            transformOrigin: 'top center'
-          }"
+    <!-- Main Workspace Area: Canvas Wrapper + Resizable Splitter + Collapsible Aside -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative min-h-0">
+      
+      <!-- Canvas Area Wrapper (Strictly bounds the scrollable canvas and its floating toolbar within the visible canvas frame) -->
+      <div class="relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-gray-950">
+        
+        <!-- In-Canvas Processing Overlay for Added Images (No page reload, smooth & centered) -->
+        <transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 scale-95"
+          enter-to-class="opacity-100 scale-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-95"
         >
-          <!-- Multi-Page / Multi-Image Sheet List -->
           <div
-            v-for="(page, pIdx) in localPages"
-            :key="page.id"
-            :ref="(el) => { if (el) pageElements[page.id] = el as HTMLDivElement }"
-            class="relative bg-white shadow-2xl rounded-sm transition-all flex-shrink-0"
-            :style="{
-              width: page.width + 'px',
-              height: page.height + 'px'
-            }"
-            @pointerdown="(e) => onPointerDown(e, page)"
-            @pointermove="(e) => onPointerMove(e, page)"
-            @pointerup="(e) => onPointerUp(e, page)"
-            @pointercancel="onPointerCancel"
+            v-if="isAddingImages"
+            class="absolute inset-0 bg-gray-950/80 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center"
           >
-            <!-- Page Header Index Badge -->
-            <div class="absolute -top-7 left-0 right-0 flex items-center justify-between text-xs text-gray-400 font-medium px-1 pointer-events-none">
-              <div class="flex items-center gap-1.5">
-                <span class="bg-gray-800 text-gray-200 text-[11px] px-2 py-0.5 rounded shadow border border-gray-700">
-                  {{ page.label || `Halaman ${pIdx + 1}` }}
-                </span>
-                <span class="text-[11px] text-gray-400">
-                  ({{ page.width }} × {{ page.height }} px)
+            <div class="bg-gray-900 border border-gray-700/80 p-6 sm:p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full">
+              <div class="w-14 h-14 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4 border border-blue-500/30">
+                <Loader2 class="w-7 h-7 animate-spin text-blue-400" />
+              </div>
+              <h3 class="text-base font-bold text-white mb-1.5">
+                Menambahkan Gambar Baru
+              </h3>
+              <p class="text-xs text-gray-300 font-medium leading-relaxed">
+                {{ addImagesProgressText }}
+              </p>
+              <div class="mt-4 px-3 py-1.5 rounded-full bg-gray-800/80 border border-gray-700 text-[10px] text-gray-400">
+                Seleksi &amp; sensor pada gambar sebelumnya tetap tersimpan aman
+              </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- Scrollable Document Canvas Viewport -->
+        <main
+          ref="scrollContainer"
+          class="w-full h-full overflow-auto p-3 sm:p-6 flex justify-center items-start min-h-0 select-none relative custom-dark-scrollbar"
+          :class="[
+            interactionMode === 'pan' ? 'cursor-grab active:cursor-grabbing' :
+            interactionMode === 'block' ? 'cursor-crosshair' : 'cursor-crosshair'
+          ]"
+          :style="{
+            touchAction: interactionMode === 'pan' ? 'pan-x pan-y' : 'none'
+          }"
+          @wheel="onWheel"
+          @pointerdown="onContainerPointerDown"
+          @pointermove="onContainerPointerMove"
+          @pointerup="onContainerPointerUp"
+          @pointercancel="onContainerPointerCancel"
+        >
+          <!-- Canvas Transform Container -->
+          <div
+            ref="canvasStack"
+            class="flex flex-col items-center gap-6 py-4 pb-28 sm:pb-32 transition-transform duration-75 origin-top"
+            :style="{
+              transform: `scale(${zoomLevel})`,
+              transformOrigin: 'top center'
+            }"
+          >
+            <!-- Multi-Page / Multi-Image Sheet List -->
+            <div
+              v-for="(page, pIdx) in localPages"
+              :key="page.id"
+              :ref="(el) => { if (el) pageElements[page.id] = el as HTMLDivElement }"
+              class="relative bg-white shadow-2xl rounded-sm transition-all flex-shrink-0"
+              :style="{
+                width: page.width + 'px',
+                height: page.height + 'px'
+              }"
+              @pointerdown="(e) => onPagePointerDown(e, page)"
+              @pointermove="(e) => onPagePointerMove(e, page)"
+              @pointerup="(e) => onPagePointerUp(e, page)"
+            >
+              <!-- Page Header Index Badge -->
+              <div class="absolute -top-7 left-0 right-0 flex items-center justify-between text-xs text-gray-400 font-medium px-1 pointer-events-none">
+                <div class="flex items-center gap-1.5">
+                  <span class="bg-gray-800 text-gray-200 text-[11px] px-2 py-0.5 rounded shadow border border-gray-700">
+                    {{ page.label || `Halaman ${pIdx + 1}` }}
+                  </span>
+                  <span class="text-[11px] text-gray-400">
+                    ({{ page.width }} × {{ page.height }} px)
+                  </span>
+                </div>
+
+                <!-- Per-Page Quick Actions -->
+                <div class="flex items-center gap-1 pointer-events-auto">
+                  <button
+                    type="button"
+                    @click.stop="rotateSinglePage(page.id)"
+                    class="bg-gray-800 hover:bg-gray-700 text-gray-300 p-1 rounded transition-colors border border-gray-700 shadow"
+                    title="Putar halaman ini 90°"
+                  >
+                    <RotateCw class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    v-if="localPages.length > 1 && documentType === 'image'"
+                    type="button"
+                    @click.stop="removeSinglePage(page.id)"
+                    class="bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded transition-colors border border-red-800 shadow"
+                    title="Hapus gambar ini"
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Page Background Preview Image -->
+              <img
+                :src="page.previewUrl"
+                class="w-full h-full object-contain pointer-events-none block select-none bg-white"
+                draggable="false"
+              />
+
+              <!-- Bounding Box Layer -->
+              <!-- 1. Text Bounding Boxes -->
+              <template v-for="word in getWordsForPage(page.pageIndex)" :key="'word-' + page.id + '-' + word.globalIndex">
+                <div
+                  class="absolute flex items-center justify-center overflow-visible group transition-all"
+                  :class="[
+                    isWordRedacted(word.globalIndex, word)
+                      ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer pointer-events-auto'
+                      : documentType === 'text-pdf'
+                        ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer pointer-events-auto z-10'
+                        : 'border border-emerald-500/15 bg-emerald-500/5 pointer-events-none z-10'
+                  ]"
+                  :style="{
+                    left: word.x + 'px',
+                    top: word.y + 'px',
+                    width: word.width + 'px',
+                    height: word.height + 'px'
+                  }"
+                  @pointerdown.stop
+                  @click.stop="toggleWord(word.globalIndex)"
+                >
+                  <!-- Tooltip hover on desktop -->
+                  <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black/90 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap z-30 pointer-events-none shadow-lg">
+                    {{ word.text }}
+                  </div>
+                </div>
+              </template>
+
+              <!-- 2. Face Detection Regions (Interactive Purple - Click to Toggle / Delete) -->
+              <template v-if="enableFaceDetection">
+                <div
+                  v-for="(region, fIdx) in getFaceRegionsForPage(page.pageIndex)"
+                  :key="'face-' + pIdx + '-' + fIdx"
+                  class="absolute z-20 transition-all cursor-pointer pointer-events-auto group"
+                  :class="!isFaceActive(getFaceId(page.pageIndex, fIdx))
+                    ? 'border-2 border-dashed border-gray-400 bg-gray-400/10 opacity-50 hover:opacity-80'
+                    : 'border-2 border-purple-500 bg-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.6)] hover:bg-purple-500/40'"
+                  :style="{
+                    left: region.x + 'px',
+                    top: region.y + 'px',
+                    width: region.w + 'px',
+                    height: region.h + 'px'
+                  }"
+                  @pointerdown.stop
+                  @click.stop="toggleFaceSelection(getFaceId(page.pageIndex, fIdx))"
+                  :title="isFaceActive(getFaceId(page.pageIndex, fIdx)) ? 'Klik untuk batal sensor wajah ini' : 'Klik untuk menyensor wajah ini'"
+                >
+                  <!-- Badge Tag -->
+                  <div class="absolute -top-5 left-0 flex items-center gap-1 pointer-events-none">
+                    <span
+                      class="text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow flex items-center gap-1"
+                      :class="isFaceActive(getFaceId(page.pageIndex, fIdx)) ? 'bg-purple-600' : 'bg-gray-600'"
+                    >
+                      <span>Wajah {{ fIdx + 1 }}</span>
+                      <span v-if="!isFaceActive(getFaceId(page.pageIndex, fIdx))" class="text-[9px] opacity-85">(Dilewati)</span>
+                    </span>
+                  </div>
+
+                  <!-- Quick Delete Button on Hover -->
+                  <button
+                    type="button"
+                    @click.stop="deleteFaceRegion(page.pageIndex, fIdx)"
+                    class="absolute -top-5 right-0 bg-red-600 hover:bg-red-700 text-white p-0.5 rounded text-[9px] shadow hidden group-hover:flex items-center justify-center pointer-events-auto transition-transform active:scale-95"
+                    title="Hapus deteksi wajah ini"
+                  >
+                    <X class="w-3 h-3 stroke-[2.5]" />
+                  </button>
+                </div>
+              </template>
+
+              <!-- 3. Manual Block Regions (Selected Color / Striped) -->
+              <div
+                v-for="(region, mIdx) in getManualRegionsForPage(page.pageIndex)"
+                :key="'manual-' + pIdx + '-' + mIdx"
+                class="absolute pointer-events-none z-20 border-2"
+                :style="{
+                  left: region.x + 'px',
+                  top: region.y + 'px',
+                  width: region.w + 'px',
+                  height: region.h + 'px',
+                  borderColor: selectedColor,
+                  backgroundColor: selectedColor === '#ffffff' ? 'rgba(255,255,255,0.7)' : `${selectedColor}40`,
+                  backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 4px, transparent 4px, transparent 8px)'
+                }"
+              >
+                <span
+                  class="absolute -top-5 left-0 text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow"
+                  :style="{ backgroundColor: selectedColor === '#ffffff' ? '#4b5563' : selectedColor }"
+                >
+                  Blok Manual
                 </span>
               </div>
 
-              <!-- Per-Page Quick Actions -->
-              <div class="flex items-center gap-1 pointer-events-auto">
-                <button
-                  type="button"
-                  @click.stop="rotateSinglePage(page.id)"
-                  class="bg-gray-800 hover:bg-gray-700 text-gray-300 p-1 rounded transition-colors border border-gray-700"
-                  title="Putar halaman ini 90°"
+              <!-- 4. Active Drag Selection Rectangle with Live Measurements & Animated Brackets -->
+              <div
+                v-if="activeDragPageId === page.id && isDrawing && selectionRect && (selectionRect.w > 1 || selectionRect.h > 1)"
+                class="absolute z-30 pointer-events-none transition-none flex flex-col justify-between"
+                :class="interactionMode === 'block'
+                  ? 'border-2 border-dashed border-red-400 bg-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.5)] ring-1 ring-red-400/40'
+                  : 'border-2 border-dashed border-blue-400 bg-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.5)] ring-1 ring-blue-400/40'"
+                :style="{
+                  left: selectionRect.x + 'px',
+                  top: selectionRect.y + 'px',
+                  width: selectionRect.w + 'px',
+                  height: selectionRect.h + 'px'
+                }"
+              >
+                <!-- Top Corner Measuring Brackets -->
+                <div class="flex justify-between w-full pointer-events-none -mt-1 -mx-1">
+                  <span class="w-2.5 h-2.5 border-t-2 border-l-2" :class="interactionMode === 'block' ? 'border-red-400' : 'border-blue-400'"></span>
+                  <span class="w-2.5 h-2.5 border-t-2 border-r-2" :class="interactionMode === 'block' ? 'border-red-400' : 'border-blue-400'"></span>
+                </div>
+
+                <!-- Center Crosshair Target (if size is substantial) -->
+                <div
+                  v-if="selectionRect.w > 60 && selectionRect.h > 40"
+                  class="self-center flex items-center justify-center opacity-40 pointer-events-none"
                 >
-                  <RotateCw class="w-3.5 h-3.5" />
-                </button>
+                  <div class="w-3 h-0.5" :class="interactionMode === 'block' ? 'bg-red-400' : 'bg-blue-400'"></div>
+                  <div class="h-3 w-0.5 -ml-1.5" :class="interactionMode === 'block' ? 'bg-red-400' : 'bg-blue-400'"></div>
+                </div>
+
+                <!-- Bottom Corner Measuring Brackets -->
+                <div class="flex justify-between w-full pointer-events-none -mb-1 -mx-1">
+                  <span class="w-2.5 h-2.5 border-b-2 border-l-2" :class="interactionMode === 'block' ? 'border-red-400' : 'border-blue-400'"></span>
+                  <span class="w-2.5 h-2.5 border-b-2 border-r-2" :class="interactionMode === 'block' ? 'border-red-400' : 'border-blue-400'"></span>
+                </div>
+
+                <!-- Live Dimension & Tool Sizing Badge -->
+                <div
+                  class="absolute -top-7 left-0 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold text-white shadow-xl whitespace-nowrap flex items-center gap-1.5 pointer-events-none"
+                  :class="interactionMode === 'block' ? 'bg-red-600 border border-red-400/50' : 'bg-blue-600 border border-blue-400/50'"
+                >
+                  <span>{{ interactionMode === 'block' ? 'Blok Manual' : 'Scan Area' }}</span>
+                  <span class="opacity-70">•</span>
+                  <span>{{ Math.round(selectionRect.w) }} × {{ Math.round(selectionRect.h) }} px</span>
+                </div>
+              </div>
+
+              <!-- 5. Active Region Re-Scan OCR Spinner -->
+              <div
+                v-if="isReScanning && scanPageId === page.id && scanRect"
+                class="absolute border-2 border-yellow-400 bg-yellow-400/25 z-30 pointer-events-none flex items-center justify-center"
+                :style="{
+                  left: scanRect.x + 'px',
+                  top: scanRect.y + 'px',
+                  width: scanRect.w + 'px',
+                  height: scanRect.h + 'px'
+                }"
+              >
+                <span class="bg-yellow-500 text-white text-xs px-2.5 py-1 rounded-full animate-pulse font-semibold shadow">
+                  Memindai Teks…
+                </span>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <!-- Floating Glassmorphism Toolbar: Strictly ABSOLUTE inside Canvas Area, never overlaps sidebar or bottom panel -->
+        <div class="absolute bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 max-w-[calc(100%-16px)] sm:max-w-[calc(100%-32px)] pointer-events-none flex flex-col items-center gap-1.5">
+          
+          <!-- Dynamic Description Tooltip Banner (Shown on mobile touch/hold/select & desktop hover) -->
+          <transition
+            enter-active-class="transition duration-150 ease-out"
+            enter-from-class="opacity-0 -translate-y-1 scale-95"
+            enter-to-class="opacity-100 translate-y-0 scale-100"
+            leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100 translate-y-0 scale-100"
+            leave-to-class="opacity-0 -translate-y-1 scale-95"
+          >
+            <div
+              v-if="activeToolInfo"
+              class="pointer-events-none bg-gray-900/95 text-white text-[11px] sm:text-xs px-3 py-1 rounded-full border border-gray-700 shadow-2xl flex items-center gap-1.5 font-medium whitespace-nowrap backdrop-blur-md"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+              <span>{{ activeToolInfo }}</span>
+            </div>
+          </transition>
+
+          <!-- Floating Pill Toolbar -->
+          <div class="pointer-events-auto bg-gray-900/95 backdrop-blur-md border border-gray-700/80 shadow-[0_8px_30px_rgba(0,0,0,0.6)] rounded-full px-2 sm:px-3 py-1.5 flex items-center gap-1 sm:gap-1.5 text-gray-200 overflow-x-auto scrollbar-none max-w-full">
+            
+            <!-- Tool 1: Mode Geser / Pan -->
+            <button
+              type="button"
+              @click="setInteractionMode('pan', 'Mode Geser / Pan: Navigasi dan geser dokumen dengan bebas')"
+              @mouseenter="setToolInfo('Mode Geser: Navigasi dan geser dokumen dengan bebas')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Mode Geser: Navigasi dan geser dokumen dengan bebas', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
+              :class="interactionMode === 'pan'
+                ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400/40'
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white'"
+            >
+              <Hand class="w-4 h-4" />
+            </button>
+
+            <!-- Tool 2: Mode Blokir Manual -->
+            <button
+              type="button"
+              @click="setInteractionMode('block', 'Mode Blokir: Tarik kotak untuk menyensor foto, tanda tangan, atau teks')"
+              @mouseenter="setToolInfo('Mode Blokir: Tarik kotak untuk menyensor foto, tanda tangan, atau teks')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Mode Blokir: Tarik kotak untuk menyensor foto, tanda tangan, atau teks', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
+              :class="interactionMode === 'block'
+                ? 'bg-red-600 text-white shadow-md ring-2 ring-red-400/40'
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white'"
+            >
+              <Square class="w-4 h-4" />
+            </button>
+
+            <!-- Tool 3: Mode Scan Area (OCR Re-Scan) -->
+            <button
+              v-if="documentType !== 'text-pdf'"
+              type="button"
+              @click="setInteractionMode('scan', 'Mode Scan Area: Tarik kotak pada area buram untuk OCR ulang')"
+              @mouseenter="setToolInfo('Mode Scan: Tarik kotak pada area buram untuk OCR ulang')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Mode Scan: Tarik kotak pada area buram untuk OCR ulang', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
+              :class="interactionMode === 'scan'
+                ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white'"
+            >
+              <Scan class="w-4 h-4" />
+            </button>
+
+            <div class="h-5 w-px bg-gray-700 mx-0.5 flex-shrink-0"></div>
+
+            <!-- Tool 4: Rotate 90° -->
+            <button
+              type="button"
+              @click="rotateAllPagesClockwise"
+              @mouseenter="setToolInfo('Putar Dokumen 90°')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Putar Dokumen 90°', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-gray-300 hover:bg-gray-800 hover:text-white transition-all relative flex-shrink-0"
+            >
+              <RotateCw class="w-4 h-4" />
+            </button>
+
+            <!-- Tool 5: Deteksi Wajah AI -->
+            <button
+              type="button"
+              @click="toggleFaceDetection"
+              @mouseenter="setToolInfo('Deteksi Wajah Otomatis (MediaPipe AI)')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Deteksi Wajah Otomatis (MediaPipe AI)', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
+              :class="enableFaceDetection
+                ? 'bg-purple-600 text-white shadow-md ring-2 ring-purple-400/40'
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white'"
+            >
+              <Loader2 v-if="isScanningFaces" class="w-4 h-4 animate-spin" />
+              <UserCheck v-else class="w-4 h-4" />
+            </button>
+
+            <!-- Tool 6: Tambah Gambar (Khusus mode image) -->
+            <label
+              v-if="documentType === 'image'"
+              @mouseenter="setToolInfo('Tambah Lembar Gambar Baru')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Tambah Lembar Gambar Baru', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-purple-400 hover:bg-purple-900/40 hover:text-purple-300 transition-all cursor-pointer relative flex-shrink-0"
+            >
+              <Plus class="w-4 h-4" />
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg, image/png"
+                class="hidden"
+                @change="handleAdditionalFilesSelect"
+              />
+            </label>
+
+            <!-- Tool 7: Zoom Out (Desktop Only) -->
+            <button
+              type="button"
+              @click="zoomOut"
+              @mouseenter="setToolInfo('Perkecil Tampilan (Zoom Out)')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Perkecil Tampilan (Zoom Out)', true)"
+              @pointerup="clearToolInfoLater"
+              class="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center text-gray-300 hover:bg-gray-800 hover:text-white transition-all relative flex-shrink-0"
+            >
+              <ZoomOut class="w-4 h-4" />
+            </button>
+
+            <!-- Tool 8: Zoom Reset / Auto-Fit -->
+            <button
+              type="button"
+              @click="zoomReset"
+              @mouseenter="setToolInfo('Pas ke Layar (Auto Fit)')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Pas ke Layar (Auto Fit)', true)"
+              @pointerup="clearToolInfoLater"
+              class="px-2 h-8 sm:h-9 rounded-full flex items-center justify-center text-xs font-mono font-bold text-gray-200 hover:bg-gray-800 transition-all relative gap-1 flex-shrink-0"
+            >
+              <Maximize2 class="w-3.5 h-3.5" />
+              <span class="text-[11px]">{{ Math.round(zoomLevel * 100) }}%</span>
+            </button>
+
+            <!-- Tool 9: Zoom In (Desktop Only) -->
+            <button
+              type="button"
+              @click="zoomIn"
+              @mouseenter="setToolInfo('Perbesar Tampilan (Zoom In)')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Perbesar Tampilan (Zoom In)', true)"
+              @pointerup="clearToolInfoLater"
+              class="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center text-gray-300 hover:bg-gray-800 hover:text-white transition-all relative flex-shrink-0"
+            >
+              <ZoomIn class="w-4 h-4" />
+            </button>
+
+            <div class="h-5 w-px bg-gray-700 mx-0.5 flex-shrink-0"></div>
+
+            <!-- Tool 10: Toggle Sidebar / Control Panel (Always Prioritized & Visible) -->
+            <button
+              type="button"
+              @click="togglePanel"
+              @mouseenter="setToolInfo(isPanelOpen ? 'Sembunyikan Panel Kontrol' : 'Buka Panel Kontrol & Filter')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo(isPanelOpen ? 'Sembunyikan Panel Kontrol' : 'Buka Panel Kontrol & Filter', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
+              :class="isPanelOpen
+                ? 'bg-gray-700 text-white'
+                : 'text-amber-400 hover:bg-gray-800 ring-2 ring-amber-400/40 animate-pulse'"
+            >
+              <SlidersHorizontal class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Splitter Handle (Resize Width on Desktop) -->
+      <div
+        v-if="isPanelOpen"
+        class="hidden lg:flex w-2 hover:w-2.5 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-all items-center justify-center flex-shrink-0 z-20 group"
+        @pointerdown="startDesktopResize"
+        title="Tarik untuk mengubah lebar panel kontrol"
+      >
+        <div class="w-0.5 h-8 bg-gray-600 group-hover:bg-white rounded-full"></div>
+      </div>
+
+      <!-- Resizable & Collapsible Aside / Bottom Sheet (Matching Dark Theme) -->
+      <aside
+        v-show="isPanelOpen"
+        class="border-t lg:border-t-0 lg:border-l border-gray-800 bg-gray-900 text-gray-200 overflow-y-auto flex flex-col z-20 shadow-2xl transition-[width,height] duration-75 flex-shrink-0 custom-dark-scrollbar"
+        :style="panelStyle"
+      >
+        <!-- Mobile Bottom Sheet Drag Handle (Dark Themed) -->
+        <div
+          class="lg:hidden flex flex-col items-center justify-center pt-2.5 pb-1.5 bg-gray-900 cursor-row-resize touch-none border-b border-gray-800 flex-shrink-0"
+          @pointerdown="startMobileResize"
+        >
+          <div class="w-12 h-1.5 bg-gray-600 rounded-full mb-1.5"></div>
+          <div class="flex items-center justify-between w-full px-4 text-[11px] text-gray-300 font-semibold">
+            <span class="flex items-center gap-1.5">
+              <SlidersHorizontal class="w-3.5 h-3.5 text-blue-400" />
+              Panel Pengaturan Sensor
+            </span>
+            <button
+              type="button"
+              @click="isPanelOpen = false"
+              class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white"
+              title="Tutup Panel"
+            >
+              <ChevronDown class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Desktop Panel Header Bar (Dark Themed) -->
+        <div class="hidden lg:flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900 flex-shrink-0">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-gray-200">
+            <SlidersHorizontal class="w-3.5 h-3.5 text-blue-400" />
+            <span>Pengaturan &amp; Data Sensitif</span>
+          </div>
+          <button
+            type="button"
+            @click="isPanelOpen = false"
+            class="p-1 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+            title="Sembunyikan Panel Samping"
+          >
+            <PanelRightClose class="w-4 h-4" />
+          </button>
+        </div>
+
+        <!-- Panel Body Content (Dark Themed) -->
+        <div class="p-4 space-y-4 flex-1 overflow-y-auto custom-dark-scrollbar">
+          
+          <!-- Redaction Color Selection -->
+          <div class="border-b border-gray-800 pb-3.5">
+            <label class="block text-xs font-semibold text-gray-300 mb-2">
+              Warna Sensor / Penghalang:
+            </label>
+            <div class="flex items-center gap-2">
+              <button
+                v-for="c in colorPalette"
+                :key="c.value"
+                class="w-7 h-7 rounded-full border-2 transition-transform relative flex items-center justify-center"
+                :class="selectedColor === c.value ? 'scale-110 border-blue-500 shadow-md ring-2 ring-blue-400/40' : 'border-gray-700 hover:scale-105'"
+                :style="{ backgroundColor: c.value }"
+                :title="c.label"
+                @click="selectedColor = c.value"
+              >
+                <Check v-if="selectedColor === c.value" class="w-3.5 h-3.5" :class="c.value === '#ffffff' ? 'text-black' : 'text-white'" />
+              </button>
+              <span class="text-xs text-gray-400 ml-1.5 font-medium">
+                {{ colorPalette.find(c => c.value === selectedColor)?.label }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Face Detection Status & Manual Trigger -->
+          <div class="border-b border-gray-800 pb-3.5">
+            <label class="flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-2.5">
+                <input
+                  type="checkbox"
+                  v-model="enableFaceDetection"
+                  @change="handleFaceDetectionToggle"
+                  class="rounded border-gray-700 bg-gray-800 text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+                <span class="text-xs sm:text-sm font-semibold text-gray-200">
+                  Deteksi Wajah Otomatis
+                </span>
+              </div>
+              <span v-if="isScanningFaces" class="text-xs text-purple-400 animate-pulse font-medium flex items-center gap-1">
+                <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                Memindai…
+              </span>
+            </label>
+            <p class="text-[11px] text-gray-400 mt-1">
+              Pindai foto wajah atau pasfoto pada dokumen dan tandai untuk disensor.
+            </p>
+          </div>
+
+          <!-- Detected Faces List (Interactive Selection & Deletion for false positives / duplicates) -->
+          <div v-if="enableFaceDetection && allFaceRegionsWithIds.length > 0" class="flex flex-col border-b border-gray-800 pb-3.5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-1.5">
+                <UserCheck class="w-3.5 h-3.5 text-purple-400" />
+                <h3 class="font-semibold text-xs text-gray-200 uppercase tracking-wider">
+                  Wajah Terdeteksi ({{ activeFaceCount }}/{{ allFaceRegionsWithIds.length }})
+                </h3>
+              </div>
+              <div class="flex items-center gap-1.5 text-[11px]">
                 <button
-                  v-if="localPages.length > 1 && documentType === 'image'"
                   type="button"
-                  @click.stop="removeSinglePage(page.id)"
-                  class="bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded transition-colors border border-red-800"
-                  title="Hapus gambar ini"
+                  class="text-purple-400 hover:underline font-medium"
+                  @click="selectAllFaces"
+                >Semua</button>
+                <span class="text-gray-600">|</span>
+                <button
+                  type="button"
+                  class="text-gray-400 hover:underline font-medium"
+                  @click="deselectAllFaces"
+                >Batal</button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-dark-scrollbar">
+              <div
+                v-for="item in allFaceRegionsWithIds"
+                :key="item.id"
+                class="flex items-center justify-between p-2 rounded-md transition-colors border"
+                :class="isFaceActive(item.id)
+                  ? 'bg-purple-950/40 border-purple-800/60 text-purple-200'
+                  : 'bg-gray-850/60 border-gray-800 opacity-60 text-gray-400'"
+              >
+                <label class="flex items-center space-x-2 min-w-0 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    :checked="isFaceActive(item.id)"
+                    @change="toggleFaceSelection(item.id)"
+                    class="rounded border-gray-700 bg-gray-800 text-purple-600 focus:ring-purple-500 w-4 h-4 flex-shrink-0"
+                  />
+                  <div class="truncate">
+                    <span
+                      class="text-xs font-semibold block truncate"
+                      :class="isFaceActive(item.id) ? 'text-purple-200' : 'text-gray-400'"
+                    >
+                      Wajah {{ item.indexInPage + 1 }}
+                    </span>
+                    <span class="text-[10px] text-gray-400 block truncate">
+                      Halaman {{ item.pageIndex }} • {{ Math.round(item.w) }} × {{ Math.round(item.h) }} px
+                    </span>
+                  </div>
+                </label>
+
+                <button
+                  type="button"
+                  @click.stop="deleteFaceRegion(item.pageIndex, item.indexInPage)"
+                  class="text-gray-500 hover:text-red-400 p-1 rounded transition-colors ml-2 flex-shrink-0"
+                  title="Hapus deteksi wajah ini"
                 >
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
-
-            <!-- Page Background Preview Image -->
-            <img
-              :src="page.previewUrl"
-              class="w-full h-full object-contain pointer-events-none block select-none bg-white"
-              draggable="false"
-            />
-
-            <!-- Bounding Box Layer -->
-            <!-- 1. Text Bounding Boxes (Clickable directly on any word) -->
-            <template v-for="word in getWordsForPage(page.pageIndex)" :key="'word-' + page.id + '-' + word.globalIndex">
-              <div
-                class="absolute flex items-center justify-center overflow-visible group transition-all"
-                :class="[
-                  isWordRedacted(word.globalIndex, word)
-                    ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer pointer-events-auto'
-                    : documentType === 'text-pdf'
-                      ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer pointer-events-auto z-10'
-                      : 'border border-emerald-500/15 bg-emerald-500/5 pointer-events-none z-10'
-                ]"
-                :style="{
-                  left: word.x + 'px',
-                  top: word.y + 'px',
-                  width: word.width + 'px',
-                  height: word.height + 'px'
-                }"
-                @pointerdown.stop
-                @click.stop="toggleWord(word.globalIndex)"
-              >
-                <!-- Tooltip hover on desktop -->
-                <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black/90 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap z-30 pointer-events-none shadow-lg">
-                  {{ word.text }}
-                </div>
-              </div>
-            </template>
-
-            <!-- 2. Face Detection Regions (Purple) -->
-            <template v-if="enableFaceDetection">
-              <div
-                v-for="(region, fIdx) in getFaceRegionsForPage(page.pageIndex)"
-                :key="'face-' + pIdx + '-' + fIdx"
-                class="absolute pointer-events-none z-20 transition-opacity"
-                :class="disabledAutoRegions.has(region.globalIndex)
-                  ? 'border border-dashed border-gray-400 bg-gray-400/10 opacity-40'
-                  : 'border-2 border-purple-500 bg-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.6)]'"
-                :style="{
-                  left: region.x + 'px',
-                  top: region.y + 'px',
-                  width: region.w + 'px',
-                  height: region.h + 'px'
-                }"
-              >
-                <span
-                  v-if="!disabledAutoRegions.has(region.globalIndex)"
-                  class="absolute -top-5 left-0 bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow"
-                >
-                  Wajah {{ fIdx + 1 }}
-                </span>
-              </div>
-            </template>
-
-            <!-- 3. Manual Block Regions (Selected Color / Striped) -->
-            <div
-              v-for="(region, mIdx) in getManualRegionsForPage(page.pageIndex)"
-              :key="'manual-' + pIdx + '-' + mIdx"
-              class="absolute pointer-events-none z-20 border-2"
-              :style="{
-                left: region.x + 'px',
-                top: region.y + 'px',
-                width: region.w + 'px',
-                height: region.h + 'px',
-                borderColor: selectedColor,
-                backgroundColor: selectedColor === '#ffffff' ? 'rgba(255,255,255,0.7)' : `${selectedColor}40`,
-                backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 4px, transparent 4px, transparent 8px)'
-              }"
-            >
-              <span
-                class="absolute -top-5 left-0 text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow"
-                :style="{ backgroundColor: selectedColor === '#ffffff' ? '#4b5563' : selectedColor }"
-              >
-                Blok Manual
-              </span>
-            </div>
-
-            <!-- 4. Active Drag Selection Rectangle (Only on the interacting page) -->
-            <div
-              v-if="activeDragPageId === page.id && isDragging && selectionRect"
-              class="absolute border-2 border-dashed z-30 pointer-events-none"
-              :class="dragMode === 'block'
-                ? 'border-red-400 bg-red-400/25'
-                : 'border-blue-400 bg-blue-400/25'"
-              :style="{
-                left: selectionRect.x + 'px',
-                top: selectionRect.y + 'px',
-                width: selectionRect.w + 'px',
-                height: selectionRect.h + 'px'
-              }"
-            ></div>
-
-            <!-- 5. Active Region Re-Scan OCR Spinner -->
-            <div
-              v-if="isReScanning && scanPageId === page.id && scanRect"
-              class="absolute border-2 border-yellow-400 bg-yellow-400/25 z-30 pointer-events-none flex items-center justify-center"
-              :style="{
-                left: scanRect.x + 'px',
-                top: scanRect.y + 'px',
-                width: scanRect.w + 'px',
-                height: scanRect.h + 'px'
-              }"
-            >
-              <span class="bg-yellow-500 text-white text-xs px-2.5 py-1 rounded-full animate-pulse font-semibold shadow">
-                Memindai Teks…
-              </span>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <!-- Sidebar / Bottom Controls -->
-      <aside class="w-full lg:w-84 xl:w-96 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 overflow-y-auto flex flex-col gap-4 flex-1 lg:flex-none flex-shrink-0 z-10 shadow-sm">
-        <!-- Interactive Canvas Mode Switcher -->
-        <div class="bg-gray-100 dark:bg-gray-800 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 px-1">
-            {{ documentType === 'text-pdf' ? 'Mode Interaksi PDF Teks' : 'Mode Interaksi Kanvas' }}
-          </div>
-          <div v-if="documentType !== 'text-pdf'" class="grid grid-cols-2 gap-1.5">
-            <button
-              class="px-2.5 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5"
-              :class="dragMode === 'rescan'
-                ? 'bg-blue-600 text-white shadow-sm font-semibold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
-              @click="dragMode = 'rescan'"
-            >
-              <Scan class="w-4 h-4" />
-              <span>Scan Area</span>
-            </button>
-            <button
-              class="px-2.5 py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5"
-              :class="dragMode === 'block'
-                ? 'bg-red-600 text-white shadow-sm font-semibold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
-              @click="dragMode = 'block'"
-            >
-              <Square class="w-4 h-4" />
-              <span>Blok Manual</span>
-            </button>
-          </div>
-          <div v-else class="flex items-center gap-2 p-2 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-md">
-            <CheckCircle2 class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            <span class="text-xs font-semibold text-blue-800 dark:text-blue-200">
-              PDF Teks Digital (Tanpa OCR)
-            </span>
-          </div>
-          <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 px-1">
-            {{ documentType === 'text-pdf'
-              ? 'Seluruh teks digital telah dibaca otomatis. Klik langsung pada kata apa pun untuk menyensor/batal sensor, atau tarik kotak untuk memblokir teks & area.'
-              : dragMode === 'block'
-                ? 'Tarik/Drag untuk memblokir langsung gambar, tabel, atau teks buram.'
-                : 'Tarik/Drag untuk memindai ulang teks yang terlewat pada area yang dipilih.' }}
-          </p>
-        </div>
-
-        <!-- Redaction Color Selection -->
-        <div class="border-b border-gray-200 dark:border-gray-800 pb-3">
-          <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Warna Sensor / Penghalang:
-          </label>
-          <div class="flex items-center gap-2">
-            <button
-              v-for="c in colorPalette"
-              :key="c.value"
-              class="w-7 h-7 rounded-full border-2 transition-transform relative flex items-center justify-center"
-              :class="selectedColor === c.value ? 'scale-110 border-blue-500 shadow-md ring-2 ring-blue-400/40' : 'border-gray-300 dark:border-gray-600 hover:scale-105'"
-              :style="{ backgroundColor: c.value }"
-              :title="c.label"
-              @click="selectedColor = c.value"
-            >
-              <Check v-if="selectedColor === c.value" class="w-3.5 h-3.5" :class="c.value === '#ffffff' ? 'text-black' : 'text-white'" />
-            </button>
-            <span class="text-xs text-gray-500 dark:text-gray-400 ml-1.5 font-medium">
-              {{ colorPalette.find(c => c.value === selectedColor)?.label }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Face Detection On-Demand Toggle -->
-        <div class="border-b border-gray-200 dark:border-gray-800 pb-3">
-          <label class="flex items-center justify-between cursor-pointer">
-            <div class="flex items-center space-x-2.5">
-              <input
-                type="checkbox"
-                v-model="enableFaceDetection"
-                @change="handleFaceDetectionToggle"
-                class="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 dark:bg-gray-700 w-4 h-4"
-              />
-              <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                Deteksi Wajah Otomatis
-              </span>
-            </div>
-            <span v-if="isScanningFaces" class="text-xs text-purple-600 dark:text-purple-400 animate-pulse font-medium flex items-center gap-1">
-              <Loader2 class="w-3.5 h-3.5 animate-spin" />
-              Memindai…
-            </span>
-          </label>
-          <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-            Pindai foto wajah atau pasfoto pada dokumen dan tandai untuk disensor.
-          </p>
-        </div>
-
-        <!-- Sensitive Data Patterns Detected via Regex -->
-        <div class="flex flex-col border-b border-gray-200 dark:border-gray-800 pb-3">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
-              Pola Sensitif Terdeteksi
-            </h3>
-            <div class="flex items-center gap-1.5 text-[11px]" v-if="foundSensitiveKeywords.length > 0">
-              <button
-                class="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                @click="selectAllKeywords"
-              >Semua</button>
-              <span class="text-gray-400">|</span>
-              <button
-                class="text-gray-500 dark:text-gray-400 hover:underline font-medium"
-                @click="deselectAllKeywords"
-              >Batal</button>
-            </div>
           </div>
 
-          <div v-if="foundSensitiveKeywords.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-            <label
-              v-for="item in foundSensitiveKeywords"
-              :key="item.id"
-              class="flex items-center justify-between p-2 rounded-md bg-gray-50 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer border border-gray-200 dark:border-gray-700/60 transition-colors"
-            >
-              <div class="flex items-center space-x-2 min-w-0">
-                <input
-                  type="checkbox"
-                  :checked="checkedKeywords.has(item.id)"
-                  @change="toggleKeywordSelection(item.id)"
-                  class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 w-4 h-4 flex-shrink-0"
-                />
-                <div class="truncate">
-                  <span class="text-xs font-semibold text-gray-800 dark:text-gray-200 block truncate">
-                    {{ item.keyword }}
-                  </span>
-                  <span class="text-[10px] text-gray-500 dark:text-gray-400 block truncate">
-                    {{ item.category }}
-                  </span>
-                </div>
-              </div>
-              <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold ml-2">
-                {{ item.count }} kata
-              </span>
-            </label>
-          </div>
-
-          <div v-else class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md border border-dashed border-gray-200 dark:border-gray-700 text-center">
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Tidak ada pola sensitif otomatis (NIK, Telepon, Email, Tanggal) yang terdeteksi.
-            </p>
-          </div>
-        </div>
-
-        <!-- Manual Selected Words Section (Populates dynamically as user clicks/selects words on canvas) -->
-        <div v-if="manualSelectedWordsList.length > 0" class="flex flex-col border-b border-gray-200 dark:border-gray-800 pb-3">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-              <h3 class="font-semibold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
-                Kata Pilihan Manual ({{ manualSelectedWordsList.length }})
+          <!-- Sensitive Data Patterns Detected via Regex -->
+          <div class="flex flex-col border-b border-gray-800 pb-3.5">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold text-xs text-gray-200 uppercase tracking-wider">
+                Pola Sensitif Terdeteksi
               </h3>
+              <div class="flex items-center gap-1.5 text-[11px]" v-if="foundSensitiveKeywords.length > 0">
+                <button
+                  class="text-blue-400 hover:underline font-medium"
+                  @click="selectAllKeywords"
+                >Semua</button>
+                <span class="text-gray-600">|</span>
+                <button
+                  class="text-gray-400 hover:underline font-medium"
+                  @click="deselectAllKeywords"
+                >Batal</button>
+              </div>
             </div>
-            <button
-              type="button"
-              class="text-[11px] text-red-600 dark:text-red-400 hover:underline font-medium"
-              @click="clearAllManualSelectedWords"
-            >
-              Hapus Semua
-            </button>
+
+            <div v-if="foundSensitiveKeywords.length > 0" class="space-y-1.5 max-h-44 overflow-y-auto pr-1 custom-dark-scrollbar">
+              <label
+                v-for="item in foundSensitiveKeywords"
+                :key="item.id"
+                class="flex items-center justify-between p-2 rounded-md bg-gray-850 hover:bg-gray-800 cursor-pointer border border-gray-800 transition-colors"
+              >
+                <div class="flex items-center space-x-2 min-w-0">
+                  <input
+                    type="checkbox"
+                    :checked="checkedKeywords.has(item.id)"
+                    @change="toggleKeywordSelection(item.id)"
+                    class="rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-blue-500 w-4 h-4 flex-shrink-0"
+                  />
+                  <div class="truncate">
+                    <span class="text-xs font-semibold text-gray-200 block truncate">
+                      {{ item.keyword }}
+                    </span>
+                    <span class="text-[10px] text-gray-400 block truncate">
+                      {{ item.category }}
+                    </span>
+                  </div>
+                </div>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 font-bold ml-2 border border-blue-800/40">
+                  {{ item.count }} kata
+                </span>
+              </label>
+            </div>
+
+            <div v-else class="p-3 bg-gray-850/50 rounded-md border border-dashed border-gray-800 text-center">
+              <p class="text-xs text-gray-400">
+                Tidak ada pola sensitif otomatis (NIK, Telepon, Email, Tanggal) yang terdeteksi.
+              </p>
+            </div>
           </div>
 
-          <div class="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
-            <div
-              v-for="item in manualSelectedWordsList"
-              :key="item.text"
-              class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-red-800 dark:text-red-200 text-xs shadow-sm"
-            >
-              <span class="font-medium max-w-[130px] truncate" :title="item.text">
-                {{ item.text }}
-              </span>
-              <span v-if="item.count > 1" class="text-[10px] bg-red-200 dark:bg-red-900/60 text-red-900 dark:text-red-200 px-1 rounded-full font-bold">
-                {{ item.count }}x
-              </span>
+          <!-- Manual Selected Words Section -->
+          <div v-if="manualSelectedWordsList.length > 0" class="flex flex-col border-b border-gray-800 pb-3.5">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <h3 class="font-semibold text-xs text-gray-200 uppercase tracking-wider">
+                  Kata Pilihan Manual ({{ manualSelectedWordsList.length }})
+                </h3>
+              </div>
               <button
                 type="button"
-                @click.stop="removeManualSelectedWord(item.indices)"
-                class="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-0.5 rounded transition-colors"
-                title="Batal sensor kata ini"
+                class="text-[11px] text-red-400 hover:underline font-medium"
+                @click="clearAllManualSelectedWords"
               >
-                <X class="w-3 h-3 stroke-[2.5]" />
+                Hapus Semua
               </button>
             </div>
-          </div>
-        </div>
 
-        <!-- Custom Keyword Input -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-            Cari Kata atau kata kunci:
-          </label>
-          <input
-            v-model="customPiiText"
-            type="text"
-            placeholder="Ketik teks yang ingin disensor..."
-            class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white text-xs px-3 py-2 border outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
-          />
-        </div>
+            <div class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1 custom-dark-scrollbar">
+              <div
+                v-for="item in manualSelectedWordsList"
+                :key="item.text"
+                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-950/40 border border-red-800/60 text-red-200 text-xs shadow-sm"
+              >
+                <span class="font-medium max-w-[130px] truncate" :title="item.text">
+                  {{ item.text }}
+                </span>
+                <span v-if="item.count > 1" class="text-[10px] bg-red-900/60 text-red-200 px-1 rounded-full font-bold">
+                  {{ item.count }}x
+                </span>
+                <button
+                  type="button"
+                  @click.stop="removeManualSelectedWord(item.indices)"
+                  class="text-red-400 hover:text-red-300 p-0.5 rounded transition-colors"
+                  title="Batal sensor kata ini"
+                >
+                  <X class="w-3 h-3 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+          </div>
 
-        <!-- Stats Summary -->
-        <div class="text-[11px] text-gray-500 dark:text-gray-400 space-y-1 pt-1 border-t border-gray-200 dark:border-gray-800">
-          <div class="flex justify-between">
-            <span>Total Lembar / Halaman:</span>
-            <span class="font-medium text-gray-700 dark:text-gray-300">{{ localPages.length }}</span>
+          <!-- Custom Keyword Search & Auto Redact -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1.5">
+              Cari Kata atau kata kunci:
+            </label>
+            <input
+              v-model="customPiiText"
+              type="text"
+              placeholder="Ketik teks yang ingin disensor..."
+              class="block w-full rounded-md border-gray-700 bg-gray-800 text-white placeholder-gray-500 text-xs px-3 py-2 border outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
+            />
           </div>
-          <div class="flex justify-between">
-            <span>Total Kata Terdeteksi:</span>
-            <span class="font-medium text-gray-700 dark:text-gray-300">{{ editableWords.length }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span>Kata yang Disensor:</span>
-            <span class="font-medium text-red-600 dark:text-red-400">{{ totalRedactedWordsCount }} kata</span>
-          </div>
-          <div class="flex justify-between" v-if="allManualRegions.length > 0">
-            <span>Blok Manual:</span>
-            <span class="font-medium text-red-600 dark:text-red-400">{{ allManualRegions.length }} area</span>
-          </div>
-          <div class="flex justify-between" v-if="enableFaceDetection && allFaceRegions.length > 0">
-            <span>Wajah Terdeteksi:</span>
-            <span class="font-medium text-purple-600 dark:text-purple-400">{{ allFaceRegions.length - disabledAutoRegions.size }} wajah</span>
-          </div>
-        </div>
 
-        <!-- Status Flash Message -->
-        <div v-if="statusMessage" class="text-xs p-2.5 rounded-md" :class="statusMessageClass">
-          {{ statusMessage }}
+          <!-- Stats Summary -->
+          <div class="text-[11px] text-gray-400 space-y-1.5 pt-2 border-t border-gray-800">
+            <div class="flex justify-between">
+              <span>Total Lembar / Halaman:</span>
+              <span class="font-medium text-gray-200">{{ localPages.length }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Total Kata Terdeteksi:</span>
+              <span class="font-medium text-gray-200">{{ editableWords.length }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Kata yang Disensor:</span>
+              <span class="font-medium text-red-400">{{ totalRedactedWordsCount }} kata</span>
+            </div>
+            <div class="flex justify-between" v-if="allManualRegions.length > 0">
+              <span>Blok Manual:</span>
+              <span class="font-medium text-red-400">{{ allManualRegions.length }} area</span>
+            </div>
+            <div class="flex justify-between" v-if="enableFaceDetection && allFaceRegionsWithIds.length > 0">
+              <span>Wajah Terdeteksi:</span>
+              <span class="font-medium text-purple-400">{{ activeFaceCount }} / {{ allFaceRegionsWithIds.length }} wajah</span>
+            </div>
+          </div>
+
+          <!-- Status Flash Message -->
+          <div v-if="statusMessage" class="text-xs p-2.5 rounded-md shadow-sm" :class="statusMessageClass">
+            {{ statusMessage }}
+          </div>
         </div>
       </aside>
     </div>
-
-    <!-- Bottom Status & Zoom Bar -->
-    <footer class="px-4 py-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs text-gray-600 dark:text-gray-400 flex items-center justify-between gap-2 z-20 flex-shrink-0">
-      <div class="flex items-center gap-2 truncate">
-        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">
-          {{ dragMode === 'block' ? 'Klik untuk hapus blok. Drag untuk blokir area.' : 'Klik untuk sensor/batal kata. Drag untuk scan teks baru.' }}
-        </span>
-      </div>
-
-      <!-- Zoom Slider Controls -->
-      <div class="flex items-center gap-1.5 ml-auto flex-shrink-0">
-        <button
-          @click="zoomOut"
-          class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold transition-colors"
-        >
-          <ZoomOut class="w-3.5 h-3.5" />
-        </button>
-        <span class="font-mono w-10 text-center font-semibold text-gray-800 dark:text-gray-200 text-xs">
-          {{ Math.round(zoomLevel * 100) }}%
-        </span>
-        <button
-          @click="zoomIn"
-          class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-bold transition-colors"
-        >
-          <ZoomIn class="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import {
   RotateCw,
   Scan,
@@ -555,9 +824,14 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Hand,
+  UserCheck,
+  SlidersHorizontal,
+  ChevronDown,
+  PanelRightClose,
 } from 'lucide-vue-next';
 import type { SpatialWord } from '~/utils/ocrEngine';
-import { processRegion } from '~/utils/ocrEngine';
+import { processRegion, processDocument } from '~/utils/ocrEngine';
 import {
   findContextualPIIWordIndices,
   extractFoundSensitiveKeywords,
@@ -585,7 +859,6 @@ const emit = defineEmits<{
     redactionColor: string;
   }): void;
   (e: 'cancel'): void;
-  (e: 'add-images', files: File[]): void;
 }>();
 
 // --- Local Pages State ---
@@ -594,17 +867,148 @@ const pageElements = ref<Record<string, HTMLDivElement>>({});
 const editableWords = ref<(SpatialWord & { globalIndex: number })[]>([]);
 const scrollContainer = ref<HTMLDivElement | null>(null);
 const canvasStack = ref<HTMLDivElement | null>(null);
+const isInitialized = ref(false);
+
+// --- In-Canvas Processing State for Added Images ---
+const isAddingImages = ref(false);
+const addImagesProgressText = ref('');
 
 // --- Viewport & Zoom State ---
 const zoomLevel = ref(1);
-const ZOOM_MIN = 0.2;
-const ZOOM_MAX = 3.5;
+const ZOOM_MIN = 0.15;
+const ZOOM_MAX = 4.0;
 const ZOOM_STEP = 0.15;
 
-// --- Drag and Pointer State ---
-type DragMode = 'rescan' | 'block';
-const dragMode = ref<DragMode>('rescan');
-const isDragging = ref(false);
+// --- Interaction Mode State ---
+type InteractionMode = 'pan' | 'block' | 'scan';
+const interactionMode = ref<InteractionMode>('pan');
+
+// --- Active Tool Info / Tooltip Banner ---
+const activeToolInfo = ref<string | null>(null);
+let toolInfoTimer: any = null;
+
+function setToolInfo(info: string, persistent: boolean = false) {
+  if (toolInfoTimer) clearTimeout(toolInfoTimer);
+  activeToolInfo.value = info;
+  if (!persistent) {
+    toolInfoTimer = setTimeout(() => {
+      activeToolInfo.value = null;
+    }, 2800);
+  }
+}
+
+function clearToolInfo() {
+  if (toolInfoTimer) clearTimeout(toolInfoTimer);
+  activeToolInfo.value = null;
+}
+
+function clearToolInfoLater() {
+  if (toolInfoTimer) clearTimeout(toolInfoTimer);
+  toolInfoTimer = setTimeout(() => {
+    activeToolInfo.value = null;
+  }, 2000);
+}
+
+function setInteractionMode(mode: InteractionMode, label: string) {
+  interactionMode.value = mode;
+  setToolInfo(label);
+}
+
+// --- Panel Resize & Collapse State ---
+const isPanelOpen = ref(true);
+const sidebarWidth = ref(360); // Desktop width in px
+const bottomSheetHeight = ref(45); // Mobile height in vh (%)
+const isResizingDesktop = ref(false);
+const isResizingMobile = ref(false);
+const resizeStartY = ref(0);
+const initialSheetHeight = ref(45);
+const resizeStartX = ref(0);
+const initialSidebarWidth = ref(360);
+
+const panelStyle = computed(() => {
+  if (typeof window === 'undefined') return {};
+  const isDesktop = window.innerWidth >= 1024;
+  if (isDesktop) {
+    return {
+      width: isPanelOpen.value ? `${sidebarWidth.value}px` : '0px',
+      minWidth: isPanelOpen.value ? '260px' : '0px',
+      maxWidth: '600px',
+    };
+  } else {
+    return {
+      height: isPanelOpen.value ? `${bottomSheetHeight.value}vh` : '0px',
+      maxHeight: '80vh',
+    };
+  }
+});
+
+function togglePanel() {
+  isPanelOpen.value = !isPanelOpen.value;
+  setToolInfo(isPanelOpen.value ? 'Panel Pengaturan Terbuka' : 'Panel Ditutup (Layar Kanvas Maksimal)');
+  nextTick(() => {
+    zoomReset();
+  });
+}
+
+// --- Desktop Splitter Drag ---
+function startDesktopResize(e: PointerEvent) {
+  isResizingDesktop.value = true;
+  resizeStartX.value = e.clientX;
+  initialSidebarWidth.value = sidebarWidth.value;
+
+  const onMove = (moveEvt: PointerEvent) => {
+    if (!isResizingDesktop.value) return;
+    const deltaX = resizeStartX.value - moveEvt.clientX;
+    sidebarWidth.value = Math.max(260, Math.min(600, initialSidebarWidth.value + deltaX));
+  };
+
+  const onUp = () => {
+    isResizingDesktop.value = false;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+// --- Mobile Bottom Sheet Drag ---
+function startMobileResize(e: PointerEvent) {
+  isResizingMobile.value = true;
+  resizeStartY.value = e.clientY;
+  initialSheetHeight.value = bottomSheetHeight.value;
+
+  const onMove = (moveEvt: PointerEvent) => {
+    if (!isResizingMobile.value) return;
+    const deltaY = resizeStartY.value - moveEvt.clientY;
+    const deltaVh = (deltaY / window.innerHeight) * 100;
+    bottomSheetHeight.value = Math.max(20, Math.min(80, initialSheetHeight.value + deltaVh));
+  };
+
+  const onUp = () => {
+    isResizingMobile.value = false;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+// --- Pointer & Multi-Touch Gesture State ---
+const activePointers = new Map<number, { clientX: number; clientY: number }>();
+let initialPinchDistance = 0;
+let initialPinchZoom = 1;
+
+// Pan state for 1-finger canvas drag
+let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
+let panScrollLeft = 0;
+let panScrollTop = 0;
+
+// Drawing state for block/scan
+const isDrawing = ref(false);
 const activeDragPageId = ref<string | null>(null);
 const pointerStartX = ref(0);
 const pointerStartY = ref(0);
@@ -631,22 +1035,64 @@ const checkedKeywords = ref<Set<string>>(new Set());
 const manuallyRedactedIndices = ref<Set<number>>(new Set());
 const unredactedIndices = ref<Set<number>>(new Set());
 
-// --- Face Detection State ---
+// --- Face Detection & Interactive Selection State ---
 const enableFaceDetection = ref(false);
 const isScanningFaces = ref(false);
-const disabledAutoRegions = ref<Set<number>>(new Set());
+const disabledFaceIds = ref<Set<string>>(new Set());
+
+function getFaceId(pageIndex: number, faceIndex: number): string {
+  return `face-${pageIndex}-${faceIndex}`;
+}
+
+function isFaceActive(faceId: string): boolean {
+  return !disabledFaceIds.value.has(faceId);
+}
+
+function toggleFaceSelection(faceId: string) {
+  const next = new Set(disabledFaceIds.value);
+  if (next.has(faceId)) {
+    next.delete(faceId);
+    setToolInfo('Wajah diaktifkan untuk disensor');
+  } else {
+    next.add(faceId);
+    setToolInfo('Sensor wajah dibatalkan (dilewati)');
+  }
+  disabledFaceIds.value = next;
+}
+
+function selectAllFaces() {
+  disabledFaceIds.value = new Set();
+  setToolInfo('Semua wajah diaktifkan untuk disensor');
+}
+
+function deselectAllFaces() {
+  const allIds = new Set<string>();
+  allFaceRegionsWithIds.value.forEach((f) => {
+    allIds.add(f.id);
+  });
+  disabledFaceIds.value = allIds;
+  setToolInfo('Semua sensor wajah dibatalkan');
+}
+
+function deleteFaceRegion(pageIndex: number, faceIndex: number) {
+  const page = localPages.value.find((p) => p.pageIndex === pageIndex);
+  if (page && page.faceRegions && page.faceRegions[faceIndex]) {
+    page.faceRegions.splice(faceIndex, 1);
+    setToolInfo('Deteksi wajah dihapus');
+  }
+}
 
 // --- Status Flash Notification ---
 const statusMessage = ref('');
-const statusMessageClass = ref('bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300');
+const statusMessageClass = ref('bg-blue-600 text-white');
 
-function showStatus(msg: string, type: 'info' | 'success' | 'warning' | 'error') {
+function showStatus(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
   statusMessage.value = msg;
-  const classes: Record<string, string> = {
-    info: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-    success: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-    warning: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
-    error: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  const classes = {
+    info: 'bg-blue-900/90 text-blue-100 border border-blue-700',
+    success: 'bg-emerald-900/90 text-emerald-100 border border-emerald-700',
+    warning: 'bg-amber-900/90 text-amber-100 border border-amber-700',
+    error: 'bg-red-900/90 text-red-100 border border-red-700',
   };
   statusMessageClass.value = classes[type] || classes.info;
 
@@ -665,7 +1111,7 @@ const activePiiTypes = computed<PIIType[]>(() => {
   return types;
 });
 
-// Precompute standalone concrete regex matches only when words or types change
+// Precompute standalone concrete regex matches
 const standalonePiiIndices = computed<Set<number>>(() => {
   return findContextualPIIWordIndices(
     editableWords.value,
@@ -734,10 +1180,11 @@ function syncEditableWords() {
   checkedKeywords.value = initialIds;
 }
 
-// Synchronize pages and words from props
+// Synchronize pages and words from props on initial load
 watch(
   () => props.pages,
   (newPages) => {
+    if (isInitialized.value) return;
     if (newPages && newPages.length > 0) {
       localPages.value = JSON.parse(JSON.stringify(newPages));
     } else if (props.imageUrl) {
@@ -758,6 +1205,10 @@ watch(
       ];
     }
     syncEditableWords();
+    isInitialized.value = true;
+    nextTick(() => {
+      zoomReset();
+    });
   },
   { immediate: true, deep: true }
 );
@@ -768,10 +1219,19 @@ const allManualRegions = computed<DetectedRegion[]>(() => {
   );
 });
 
-const allFaceRegions = computed<DetectedRegion[]>(() => {
+const allFaceRegionsWithIds = computed(() => {
   return localPages.value.flatMap((p) =>
-    (p.faceRegions || []).map((r) => ({ ...r, pageIndex: p.pageIndex }))
+    (p.faceRegions || []).map((r, fIdx) => ({
+      ...r,
+      id: getFaceId(p.pageIndex, fIdx),
+      pageIndex: p.pageIndex,
+      indexInPage: fIdx,
+    }))
   );
+});
+
+const activeFaceCount = computed(() => {
+  return allFaceRegionsWithIds.value.filter((f) => isFaceActive(f.id)).length;
 });
 
 function getWordsForPage(pageIndex: number) {
@@ -779,9 +1239,8 @@ function getWordsForPage(pageIndex: number) {
 }
 
 function getFaceRegionsForPage(pageIndex: number) {
-  return allFaceRegions.value
-    .map((r, i) => ({ ...r, globalIndex: i }))
-    .filter((r) => ((r as any).pageIndex || 1) === pageIndex);
+  const page = localPages.value.find((p) => p.pageIndex === pageIndex);
+  return page ? page.faceRegions || [] : [];
 }
 
 function getManualRegionsForPage(pageIndex: number) {
@@ -789,93 +1248,45 @@ function getManualRegionsForPage(pageIndex: number) {
   return page ? page.manualRegions || [] : [];
 }
 
-// --- Toggle / Selection Methods (Clean 0ms Instant Updates) ---
-function toggleKeywordSelection(id: string) {
-  const nextChecked = new Set(checkedKeywords.value);
-  const item = foundSensitiveKeywords.value.find((k) => k.id === id);
-
-  if (nextChecked.has(id)) {
-    nextChecked.delete(id);
-    if (item) {
-      item.wordIndices.forEach((idx) => {
-        unredactedIndices.value.add(idx);
-        manuallyRedactedIndices.value.delete(idx);
-      });
-    }
+function toggleWord(globalIndex: number) {
+  const currentlyRedacted = isWordRedacted(globalIndex);
+  if (currentlyRedacted) {
+    unredactedIndices.value.add(globalIndex);
+    manuallyRedactedIndices.value.delete(globalIndex);
   } else {
-    nextChecked.add(id);
-    if (item) {
-      item.wordIndices.forEach((idx) => {
-        unredactedIndices.value.delete(idx);
-        manuallyRedactedIndices.value.delete(idx);
-      });
-    }
+    unredactedIndices.value.delete(globalIndex);
+    manuallyRedactedIndices.value.add(globalIndex);
   }
+}
 
-  checkedKeywords.value = nextChecked;
+function toggleKeywordSelection(keywordId: string) {
+  const next = new Set(checkedKeywords.value);
+  if (next.has(keywordId)) {
+    next.delete(keywordId);
+  } else {
+    next.add(keywordId);
+  }
+  checkedKeywords.value = next;
 }
 
 function selectAllKeywords() {
-  const nextChecked = new Set<string>();
+  const allIds = new Set<string>();
   foundSensitiveKeywords.value.forEach((item) => {
-    nextChecked.add(item.id);
-    item.wordIndices.forEach((idx) => {
-      unredactedIndices.value.delete(idx);
-      manuallyRedactedIndices.value.delete(idx);
-    });
+    allIds.add(item.id);
   });
-  checkedKeywords.value = nextChecked;
+  checkedKeywords.value = allIds;
 }
 
 function deselectAllKeywords() {
-  foundSensitiveKeywords.value.forEach((item) => {
-    item.wordIndices.forEach((idx) => {
-      unredactedIndices.value.add(idx);
-      manuallyRedactedIndices.value.delete(idx);
-    });
-  });
   checkedKeywords.value = new Set();
 }
 
-function toggleDragMode() {
-  dragMode.value = dragMode.value === 'rescan' ? 'block' : 'rescan';
-}
-
-function toggleWord(globalIndex: number) {
-  const word = editableWords.value.find((w) => w.globalIndex === globalIndex);
-  if (!word) return;
-  const currentlyRedacted = isWordRedacted(globalIndex, word);
-
-  const nextUnredacted = new Set(unredactedIndices.value);
-  const nextManual = new Set(manuallyRedactedIndices.value);
-
-  if (currentlyRedacted) {
-    nextUnredacted.add(globalIndex);
-    nextManual.delete(globalIndex);
-    showStatus(`Batal menyensor "${word.text}"`, 'info');
-  } else {
-    nextUnredacted.delete(globalIndex);
-    nextManual.add(globalIndex);
-    showStatus(`Menyensor "${word.text}"`, 'success');
-  }
-
-  unredactedIndices.value = nextUnredacted;
-  manuallyRedactedIndices.value = nextManual;
-}
-
-interface ManualSelectedItem {
-  text: string;
-  count: number;
-  indices: number[];
-  pageNumbers: number[];
-}
-
-const manualSelectedWordsList = computed<ManualSelectedItem[]>(() => {
+const manualSelectedWordsList = computed(() => {
   const map = new Map<string, { count: number; indices: number[]; pages: Set<number> }>();
 
   manuallyRedactedIndices.value.forEach((idx) => {
-    const word = editableWords.value.find((w) => w.globalIndex === idx);
-    if (word && word.text.trim()) {
+    const word = editableWords.value[idx];
+    if (word) {
       const key = word.text.trim();
       if (!map.has(key)) {
         map.set(key, { count: 0, indices: [], pages: new Set() });
@@ -920,7 +1331,7 @@ function clearAllManualSelectedWords() {
   showStatus('Semua pilihan kata manual dibersihkan.', 'info');
 }
 
-// --- Zoom & Navigation with Boundaries ---
+// --- Zoom & Auto-Fit Navigation ---
 function onWheel(e: WheelEvent) {
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
@@ -930,11 +1341,13 @@ function onWheel(e: WheelEvent) {
 }
 
 function zoomIn() {
-  zoomLevel.value = Math.min(ZOOM_MAX, zoomLevel.value + ZOOM_STEP);
+  zoomLevel.value = Math.min(ZOOM_MAX, +(zoomLevel.value + ZOOM_STEP).toFixed(2));
+  setToolInfo(`Zoom: ${Math.round(zoomLevel.value * 100)}%`);
 }
 
 function zoomOut() {
-  zoomLevel.value = Math.max(ZOOM_MIN, zoomLevel.value - ZOOM_STEP);
+  zoomLevel.value = Math.max(ZOOM_MIN, +(zoomLevel.value - ZOOM_STEP).toFixed(2));
+  setToolInfo(`Zoom: ${Math.round(zoomLevel.value * 100)}%`);
 }
 
 function zoomReset() {
@@ -943,16 +1356,24 @@ function zoomReset() {
     return;
   }
   const maxPageWidth = Math.max(...localPages.value.map((p) => p.width || 800));
-  const containerWidth = scrollContainer.value.clientWidth - 48;
-  zoomLevel.value = Math.min(1, Math.max(ZOOM_MIN, containerWidth / maxPageWidth));
+  const maxPageHeight = Math.max(...localPages.value.map((p) => p.height || 1000));
+  
+  const containerW = scrollContainer.value.clientWidth - (window.innerWidth < 640 ? 24 : 48);
+  const containerH = scrollContainer.value.clientHeight - (window.innerWidth < 640 ? 110 : 90);
+
+  const scaleW = containerW / maxPageWidth;
+  const scaleH = containerH / maxPageHeight;
+  
+  const targetScale = Math.min(scaleW, scaleH > 0.3 ? scaleH : scaleW);
+  zoomLevel.value = Math.min(1.2, Math.max(ZOOM_MIN, +targetScale.toFixed(2)));
+  setToolInfo(`Pas Layar (${Math.round(zoomLevel.value * 100)}%)`);
 }
 
-// --- Rotation Methods (Mathematical 90° Transform without reloading) ---
+// --- Rotation Methods (Mathematical 90° Transform) ---
 function rotatePageCoords(page: DocumentPageItem) {
   const oldW = page.width;
   const oldH = page.height;
 
-  // Swap canvas dimensions
   page.width = oldH;
   page.height = oldW;
   page.rotation = ((page.rotation || 0) + 90) % 360;
@@ -1007,7 +1428,7 @@ function rotateSinglePage(pageId: string) {
   const page = localPages.value.find((p) => p.id === pageId);
   if (page) {
     rotatePageCoords(page);
-    showStatus(`${page.label} diputar 90°.`, 'info');
+    setToolInfo(`${page.label} diputar 90°`);
   }
 }
 
@@ -1015,7 +1436,7 @@ function rotateAllPagesClockwise() {
   localPages.value.forEach((page) => {
     rotatePageCoords(page);
   });
-  showStatus('Semua halaman diputar 90°.', 'info');
+  setToolInfo('Semua halaman diputar 90°');
 }
 
 function removeSinglePage(pageId: string) {
@@ -1027,21 +1448,109 @@ function removeSinglePage(pageId: string) {
   }
 }
 
-function handleAdditionalFilesSelect(e: Event) {
+// In-Place Image Ingestion without Page Refresh or Selection Reset
+async function handleAdditionalFilesSelect(e: Event) {
   const target = e.target as HTMLInputElement;
-  if (target.files && target.files.length > 0) {
-    const fileList = Array.from(target.files);
-    emit('add-images', fileList);
-    target.value = '';
+  if (!target.files || target.files.length === 0) return;
+  const fileList = Array.from(target.files);
+  target.value = '';
+
+  isAddingImages.value = true;
+  addImagesProgressText.value = `Memproses 1 dari ${fileList.length} gambar...`;
+  setToolInfo(`Menambahkan ${fileList.length} gambar baru...`, true);
+
+  try {
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      addImagesProgressText.value = `Mengekstrak teks gambar ${i + 1} dari ${fileList.length} (${file.name})...`;
+
+      // 1. Load image natural dimensions & preview URL
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        img.src = objectUrl;
+      });
+
+      const width = img.naturalWidth || img.width || 800;
+      const height = img.naturalHeight || img.height || 1000;
+      const newPageIndex = localPages.value.length + 1;
+
+      // 2. Run OCR directly without reloading/resetting existing pages
+      const rawWords = await processDocument(file);
+      const taggedWords = rawWords.map((w) => ({
+        ...w,
+        pageIndex: newPageIndex,
+      }));
+
+      // 3. Run Face Detection automatically if enabled on new image
+      let newFaceRegions: DetectedRegion[] = [];
+      if (enableFaceDetection.value) {
+        addImagesProgressText.value = `Mendeteksi wajah pada gambar ${i + 1} dari ${fileList.length}...`;
+        try {
+          newFaceRegions = await detectFaces(img);
+        } catch (err) {
+          console.error('Face detection error on added image:', err);
+        }
+      }
+
+      // 4. Construct new page item
+      const newPage: DocumentPageItem = {
+        id: `img-${newPageIndex}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        pageIndex: newPageIndex,
+        label: `Gambar ${newPageIndex} (${file.name})`,
+        type: 'image',
+        sourceBlob: file,
+        previewUrl: objectUrl,
+        width,
+        height,
+        rotation: 0,
+        words: taggedWords,
+        manualRegions: [],
+        faceRegions: newFaceRegions,
+      };
+
+      // 5. Append to localPages
+      localPages.value.push(newPage);
+
+      // 6. Append new words to editableWords with unique globalIndex
+      const startGlobalIndex = editableWords.value.length;
+      const newEditableWords = taggedWords.map((w, idx) => ({
+        ...w,
+        globalIndex: startGlobalIndex + idx,
+      }));
+      editableWords.value.push(...newEditableWords);
+
+      // 7. Auto-detect sensitive keywords from new words and select them
+      const newFoundKeywords = extractFoundSensitiveKeywords(newEditableWords);
+      newFoundKeywords.forEach((item) => {
+        checkedKeywords.value.add(item.id);
+      });
+    }
+
+    setToolInfo(`Berhasil menambahkan ${fileList.length} gambar baru!`);
+    showStatus(`${fileList.length} gambar baru berhasil ditambahkan tanpa menghilangkan seleksi sebelumnya.`, 'success');
+  } catch (error: any) {
+    console.error('Error adding images:', error);
+    setToolInfo('Gagal menambahkan gambar');
+    showStatus('Gagal memproses gambar tambahan: ' + (error?.message || error), 'error');
+  } finally {
+    isAddingImages.value = false;
   }
 }
 
 // --- Face Detection Toggle ---
+function toggleFaceDetection() {
+  enableFaceDetection.value = !enableFaceDetection.value;
+  handleFaceDetectionToggle();
+}
+
 async function handleFaceDetectionToggle() {
   if (enableFaceDetection.value) {
-    if (allFaceRegions.value.length === 0) {
+    if (allFaceRegionsWithIds.value.length === 0) {
       isScanningFaces.value = true;
-      showStatus('Menjalankan deteksi wajah…', 'info');
+      setToolInfo('Memindai wajah dengan AI…', true);
       try {
         for (const page of localPages.value) {
           const img = new Image();
@@ -1053,41 +1562,41 @@ async function handleFaceDetectionToggle() {
           const faces = await detectFaces(img);
           page.faceRegions = faces;
         }
-        disabledAutoRegions.value.clear();
-        const totalFaces = allFaceRegions.value.length;
+        disabledFaceIds.value.clear();
+        const totalFaces = allFaceRegionsWithIds.value.length;
         if (totalFaces > 0) {
-          showStatus(`Ditemukan ${totalFaces} wajah pada dokumen.`, 'success');
+          setToolInfo(`Ditemukan ${totalFaces} wajah pada dokumen`);
         } else {
-          showStatus('Tidak ditemukan wajah pada dokumen.', 'info');
+          setToolInfo('Tidak ditemukan wajah pada dokumen');
         }
       } catch (err) {
-        showStatus('Gagal menjalankan deteksi wajah.', 'error');
+        setToolInfo('Gagal menjalankan deteksi wajah');
       } finally {
         isScanningFaces.value = false;
       }
     } else {
-      disabledAutoRegions.value.clear();
-      showStatus('Deteksi wajah diaktifkan.', 'info');
+      disabledFaceIds.value.clear();
+      setToolInfo('Deteksi wajah diaktifkan');
     }
   } else {
-    showStatus('Deteksi wajah dinonaktifkan.', 'info');
+    setToolInfo('Deteksi wajah dinonaktifkan');
   }
 }
 
-// --- Pointer Events for Universal Touch & Mouse Drag ---
-const CLICK_THRESHOLD = 8;
-const MIN_DRAG_SIZE = 12;
+// --- Multi-Touch & Pointer Event Handling ---
+const CLICK_THRESHOLD = 6;
+const MIN_DRAG_SIZE = 10;
 
-function getPageRelativeCoords(e: PointerEvent, pageEl: HTMLElement): { x: number; y: number } {
+function getPageRelativeCoords(clientX: number, clientY: number, pageEl: HTMLElement): { x: number; y: number } {
   const rect = pageEl.getBoundingClientRect();
   return {
-    x: (e.clientX - rect.left) / zoomLevel.value,
-    y: (e.clientY - rect.top) / zoomLevel.value,
+    x: (clientX - rect.left) / zoomLevel.value,
+    y: (clientY - rect.top) / zoomLevel.value,
   };
 }
 
 const selectionRect = computed(() => {
-  if (!isDragging.value) return null;
+  if (!isDrawing.value) return null;
   const x = Math.min(pointerStartX.value, pointerCurrentX.value);
   const y = Math.min(pointerStartY.value, pointerCurrentY.value);
   const w = Math.abs(pointerCurrentX.value - pointerStartX.value);
@@ -1095,145 +1604,207 @@ const selectionRect = computed(() => {
   return { x, y, w, h };
 });
 
-function onPointerDown(e: PointerEvent, page: DocumentPageItem) {
-  if (isReScanning.value) return;
+function getPinchDistance(p1: { clientX: number; clientY: number }, p2: { clientX: number; clientY: number }): number {
+  return Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
+}
+
+// Global Viewport Pan & Pinch Handlers
+function onContainerPointerDown(e: PointerEvent) {
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+  // 2-Finger Pinch Zoom Detection
+  if (activePointers.size === 2) {
+    isDrawing.value = false;
+    isPanning = false;
+    const pts = Array.from(activePointers.values());
+    initialPinchDistance = getPinchDistance(pts[0], pts[1]);
+    initialPinchZoom = zoomLevel.value;
+    return;
+  }
+
+  // 1-Finger Pan / Scroll when in 'pan' mode
+  if (interactionMode.value === 'pan' && scrollContainer.value) {
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panScrollLeft = scrollContainer.value.scrollLeft;
+    panScrollTop = scrollContainer.value.scrollTop;
+  }
+}
+
+function onContainerPointerMove(e: PointerEvent) {
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+  // 2-Finger Pinch Zoom
+  if (activePointers.size === 2) {
+    const pts = Array.from(activePointers.values());
+    const currentDist = getPinchDistance(pts[0], pts[1]);
+    if (initialPinchDistance > 0) {
+      const scaleRatio = currentDist / initialPinchDistance;
+      zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(initialPinchZoom * scaleRatio).toFixed(2)));
+    }
+    return;
+  }
+
+  // 1-Finger Pan Movement
+  if (isPanning && scrollContainer.value && activePointers.size === 1) {
+    const dx = e.clientX - panStartX;
+    const dy = e.clientY - panStartY;
+    scrollContainer.value.scrollLeft = panScrollLeft - dx;
+    scrollContainer.value.scrollTop = panScrollTop - dy;
+    return;
+  }
+
+  // Drawing Redaction / Scan Box
+  if (isDrawing.value && activeDragPageId.value) {
+    const pageEl = pageElements.value[activeDragPageId.value];
+    const page = localPages.value.find((p) => p.id === activeDragPageId.value);
+    if (pageEl && page) {
+      const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
+      pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
+      pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
+    }
+  }
+}
+
+async function onContainerPointerUp(e: PointerEvent) {
+  activePointers.delete(e.pointerId);
+  isPanning = false;
+
+  if (isDrawing.value && activeDragPageId.value) {
+    const page = localPages.value.find((p) => p.id === activeDragPageId.value);
+    const pageEl = pageElements.value[activeDragPageId.value];
+    isDrawing.value = false;
+
+    if (page && pageEl) {
+      const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
+      const dx = Math.abs(coords.x - pointerStartX.value);
+      const dy = Math.abs(coords.y - pointerStartY.value);
+
+      // Check Tap on word, face, or manual block
+      if (dx < CLICK_THRESHOLD && dy < CLICK_THRESHOLD) {
+        handleTapOnPage(page, coords);
+        activeDragPageId.value = null;
+        return;
+      }
+
+      // Drag Box Completed
+      const rect = {
+        x: Math.min(pointerStartX.value, coords.x),
+        y: Math.min(pointerStartY.value, coords.y),
+        w: Math.abs(coords.x - pointerStartX.value),
+        h: Math.abs(coords.y - pointerStartY.value),
+      };
+
+      activeDragPageId.value = null;
+
+      if (rect.w < MIN_DRAG_SIZE || rect.h < MIN_DRAG_SIZE) {
+        return;
+      }
+
+      // Action based on mode
+      if (interactionMode.value === 'scan') {
+        await runPageRegionScan(page, rect);
+      } else {
+        // Mode Block
+        if (!page.manualRegions) page.manualRegions = [];
+        page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+        setToolInfo('Area berhasil diblokir manual');
+      }
+    }
+  }
+
+  activeDragPageId.value = null;
+}
+
+function onContainerPointerCancel(e: PointerEvent) {
+  activePointers.delete(e.pointerId);
+  isPanning = false;
+  isDrawing.value = false;
+  activeDragPageId.value = null;
+}
+
+// Page Specific Pointer Handlers
+function onPagePointerDown(e: PointerEvent, page: DocumentPageItem) {
+  if (isReScanning.value || activePointers.size > 1) return;
   const pageEl = pageElements.value[page.id];
   if (!pageEl) return;
 
-  activeDragPageId.value = page.id;
-  const coords = getPageRelativeCoords(e, pageEl);
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+  const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
   pointerStartX.value = coords.x;
   pointerStartY.value = coords.y;
   pointerCurrentX.value = coords.x;
   pointerCurrentY.value = coords.y;
-  isDragging.value = true;
+  activeDragPageId.value = page.id;
 
-  try {
-    pageEl.setPointerCapture(e.pointerId);
-  } catch (_) {}
+  if (interactionMode.value !== 'pan') {
+    isDrawing.value = true;
+    try {
+      pageEl.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  }
 }
 
-function onPointerMove(e: PointerEvent, page: DocumentPageItem) {
-  if (!isDragging.value || activeDragPageId.value !== page.id) return;
-  const pageEl = pageElements.value[page.id];
-  if (!pageEl) return;
+function onPagePointerMove(e: PointerEvent, page: DocumentPageItem) {
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
-  const coords = getPageRelativeCoords(e, pageEl);
-  pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
-  pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
+  if (isDrawing.value && activeDragPageId.value === page.id) {
+    const pageEl = pageElements.value[page.id];
+    if (pageEl) {
+      const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
+      pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
+      pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
+    }
+  }
 }
 
-function onPointerCancel() {
-  isDragging.value = false;
-  activeDragPageId.value = null;
-}
-
-async function onPointerUp(e: PointerEvent, page: DocumentPageItem) {
-  if (!isDragging.value || activeDragPageId.value !== page.id) return;
-  isDragging.value = false;
-
+async function onPagePointerUp(e: PointerEvent, page: DocumentPageItem) {
   const pageEl = pageElements.value[page.id];
   if (pageEl) {
     try {
       pageEl.releasePointerCapture(e.pointerId);
     } catch (_) {}
   }
+  await onContainerPointerUp(e);
+}
 
-  const coords = pageEl ? getPageRelativeCoords(e, pageEl) : { x: pointerCurrentX.value, y: pointerCurrentY.value };
-  const dx = Math.abs(coords.x - pointerStartX.value);
-  const dy = Math.abs(coords.y - pointerStartY.value);
-
-  // Click / Tap (not drag)
-  if (dx < CLICK_THRESHOLD && dy < CLICK_THRESHOLD) {
-    activeDragPageId.value = null;
-
-    // Check manual region tap to delete
-    const manualList = page.manualRegions || [];
-    for (let i = manualList.length - 1; i >= 0; i--) {
-      const r = manualList[i];
-      if (coords.x >= r.x && coords.x <= r.x + r.w && coords.y >= r.y && coords.y <= r.y + r.h) {
-        page.manualRegions.splice(i, 1);
-        showStatus('Blok manual dihapus.', 'info');
+function handleTapOnPage(page: DocumentPageItem, coords: { x: number; y: number }) {
+  // 1. Check tap on face regions
+  if (enableFaceDetection.value && page.faceRegions) {
+    for (let i = page.faceRegions.length - 1; i >= 0; i--) {
+      const f = page.faceRegions[i];
+      if (coords.x >= f.x && coords.x <= f.x + f.w && coords.y >= f.y && coords.y <= f.y + f.h) {
+        const faceId = getFaceId(page.pageIndex, i);
+        toggleFaceSelection(faceId);
         return;
       }
     }
-
-    // Check word tap to toggle redaction
-    const pageWords = getWordsForPage(page.pageIndex);
-    for (let i = pageWords.length - 1; i >= 0; i--) {
-      const w = pageWords[i];
-      if (coords.x >= w.x && coords.x <= w.x + w.width && coords.y >= w.y && coords.y <= w.y + w.height) {
-        const currentlyRedacted = isWordRedacted(w.globalIndex, w);
-        if (currentlyRedacted) {
-          unredactedIndices.value.add(w.globalIndex);
-          manuallyRedactedIndices.value.delete(w.globalIndex);
-          showStatus(`Batal menyensor "${w.text}"`, 'info');
-        } else {
-          unredactedIndices.value.delete(w.globalIndex);
-          manuallyRedactedIndices.value.add(w.globalIndex);
-          showStatus(`Menyensor "${w.text}"`, 'success');
-        }
-        return;
-      }
-    }
-    return;
   }
 
-  // Drag completed
-  const rect = {
-    x: Math.min(pointerStartX.value, coords.x),
-    y: Math.min(pointerStartY.value, coords.y),
-    w: Math.abs(coords.x - pointerStartX.value),
-    h: Math.abs(coords.y - pointerStartY.value),
-  };
-
-  activeDragPageId.value = null;
-
-  if (rect.w < MIN_DRAG_SIZE || rect.h < MIN_DRAG_SIZE) {
-    showStatus('Area terlalu kecil. Silakan drag area yang lebih luas.', 'warning');
-    return;
-  }
-
-  // For text-pdf: check if drag intersects existing words or creates manual block
-  if (props.documentType === 'text-pdf') {
-    const pageWords = getWordsForPage(page.pageIndex);
-    const intersectedWords = pageWords.filter(
-      (w) =>
-        w.x + w.width >= rect.x &&
-        w.x <= rect.x + rect.w &&
-        w.y + w.height >= rect.y &&
-        w.y <= rect.y + rect.h
-    );
-
-    if (intersectedWords.length > 0) {
-      const nextUnredacted = new Set(unredactedIndices.value);
-      const nextManual = new Set(manuallyRedactedIndices.value);
-      intersectedWords.forEach((w) => {
-        nextUnredacted.delete(w.globalIndex);
-        nextManual.add(w.globalIndex);
-      });
-      unredactedIndices.value = nextUnredacted;
-      manuallyRedactedIndices.value = nextManual;
-      showStatus(`${intersectedWords.length} kata disensor.`, 'success');
+  // 2. Check tap on manual region to delete
+  const manualList = page.manualRegions || [];
+  for (let i = manualList.length - 1; i >= 0; i--) {
+    const r = manualList[i];
+    if (coords.x >= r.x && coords.x <= r.x + r.w && coords.y >= r.y && coords.y <= r.y + r.h) {
+      page.manualRegions.splice(i, 1);
+      setToolInfo('Blok manual dihapus');
       return;
     }
-
-    if (!page.manualRegions) page.manualRegions = [];
-    page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
-    showStatus('Area berhasil diblokir manual.', 'success');
-    return;
   }
 
-  // Block Mode
-  if (dragMode.value === 'block') {
-    if (!page.manualRegions) page.manualRegions = [];
-    page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
-    showStatus('Area berhasil diblokir manual.', 'success');
-    return;
+  // 3. Check tap on word to toggle redaction
+  const pageWords = getWordsForPage(page.pageIndex);
+  for (let i = pageWords.length - 1; i >= 0; i--) {
+    const w = pageWords[i];
+    if (coords.x >= w.x && coords.x <= w.x + w.width && coords.y >= w.y && coords.y <= w.y + w.height) {
+      toggleWord(w.globalIndex);
+      const isRedactedNow = isWordRedacted(w.globalIndex, w);
+      setToolInfo(isRedactedNow ? `Menyensor "${w.text}"` : `Batal sensor "${w.text}"`);
+      return;
+    }
   }
-
-  // Rescan OCR Mode
-  await runPageRegionScan(page, rect);
 }
 
 async function runPageRegionScan(
@@ -1243,14 +1814,14 @@ async function runPageRegionScan(
   isReScanning.value = true;
   scanPageId.value = page.id;
   scanRect.value = rect;
-  showStatus('Memindai teks pada area pilihan…', 'info');
+  setToolInfo('Memindai teks pada area pilihan…', true);
 
   try {
     const pageExistingWords = getWordsForPage(page.pageIndex);
     const newWords = await processRegion(page.previewUrl, rect, pageExistingWords);
 
     if (newWords.length === 0) {
-      showStatus('Tidak ditemukan teks tambahan pada area ini.', 'warning');
+      setToolInfo('Tidak ditemukan teks tambahan pada area ini');
       return;
     }
 
@@ -1265,7 +1836,7 @@ async function runPageRegionScan(
     });
 
     if (uniqueWords.length === 0) {
-      showStatus('Teks pada area ini sudah terdata.', 'info');
+      setToolInfo('Teks pada area ini sudah terdata');
       return;
     }
 
@@ -1274,10 +1845,10 @@ async function runPageRegionScan(
     page.words.push(...uniqueWords.map((w) => ({ ...w, pageIndex: page.pageIndex })));
 
     syncEditableWords();
-    showStatus(`Berhasil mengekstrak ${uniqueWords.length} kata baru!`, 'success');
+    setToolInfo(`Berhasil mengekstrak ${uniqueWords.length} kata baru!`);
   } catch (error) {
     console.error('Region scan failed:', error);
-    showStatus('Gagal memindai area.', 'error');
+    setToolInfo('Gagal memindai area');
   } finally {
     isReScanning.value = false;
     scanPageId.value = null;
@@ -1294,7 +1865,9 @@ function handleConfirm() {
 
   const allManual = allManualRegions.value;
   const activeFaces = enableFaceDetection.value
-    ? allFaceRegions.value.filter((_, i) => !disabledAutoRegions.value.has(i))
+    ? allFaceRegionsWithIds.value
+        .filter((f) => isFaceActive(f.id))
+        .map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h, score: f.score, pageIndex: f.pageIndex }))
     : [];
 
   const allRegions = [...activeFaces, ...allManual];
@@ -1310,8 +1883,48 @@ function handleConfirm() {
 }
 
 onMounted(() => {
-  setTimeout(() => {
+  nextTick(() => {
     zoomReset();
-  }, 100);
+  });
 });
 </script>
+
+<style scoped>
+/* Custom Dark Glassmorphism Scrollbars */
+.custom-dark-scrollbar::-webkit-scrollbar,
+.verification-theme ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-dark-scrollbar::-webkit-scrollbar-track,
+.verification-theme ::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.custom-dark-scrollbar::-webkit-scrollbar-thumb,
+.verification-theme ::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.7);
+  border-radius: 9999px;
+}
+
+.custom-dark-scrollbar::-webkit-scrollbar-thumb:hover,
+.verification-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.95);
+}
+
+.custom-dark-scrollbar,
+.verification-theme * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 85, 99, 0.7) rgba(15, 23, 42, 0.6);
+}
+
+/* Smooth scrollbar hide utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

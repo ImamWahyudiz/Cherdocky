@@ -5,7 +5,9 @@ import { detectPII, findContextualPIIWordIndices, type PIIType } from './piiDete
 import type { DocumentType } from '~/composables/useDocumentIngestion';
 import type { DetectedRegion } from './faceDetector';
 
-const PDF_RENDER_SCALE = 2;
+const PDF_RENDER_SCALE = 1.8;
+
+export type QualityPreset = 'optimal' | 'max' | 'compact';
 
 export interface PageRedactionTarget {
   pageIndex: number;
@@ -46,12 +48,16 @@ function loadImage(file: File | Blob | string): Promise<HTMLImageElement> {
   });
 }
 
-function imageToBlob(canvas: HTMLCanvasElement, type: string = 'image/png'): Promise<Blob> {
+function imageToBlob(
+  canvas: HTMLCanvasElement,
+  type: string = 'image/jpeg',
+  quality: number = 0.88
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
       else reject(new Error('Canvas to Blob failed'));
-    }, type);
+    }, type, quality);
   });
 }
 
@@ -229,12 +235,13 @@ export async function redactNativePdfText(
     scrubTextFromPdfDoc(pdfDoc, sensitiveStringsToScrub);
   }
 
-  const pdfBytes = await pdfDoc.save();
+  // Compress object streams to minimize vector PDF size
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   return new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 }
 
 /**
- * Image redaction (pixel-level destructive overwrite).
+ * Image redaction (pixel-level destructive overwrite with smart compression).
  */
 export async function redactImage(
   file: File | Blob | string,
@@ -243,6 +250,8 @@ export async function redactImage(
   customText?: string,
   regions?: DetectedRegion[],
   redactionColor: string = '#000000',
+  qualityPreset: QualityPreset = 'optimal',
+  forcedFormat?: 'image/jpeg' | 'image/png',
 ): Promise<Blob> {
   const img = await loadImage(file);
   const canvas = document.createElement('canvas');
@@ -251,6 +260,9 @@ export async function redactImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get 2d context');
 
+  // Fill white background in case of transparent background for JPEG output
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0);
 
   applyPixelRedaction(ctx, words, activeTypes, 1, customText, redactionColor);
@@ -258,14 +270,23 @@ export async function redactImage(
     applyRegionRedaction(ctx, regions, 1, redactionColor);
   }
 
-  const outputType = file instanceof File ? file.type : 'image/png';
-  const blob = await imageToBlob(canvas, outputType || 'image/png');
+  let mime = forcedFormat;
+  if (!mime) {
+    if (file instanceof File && file.type === 'image/png') {
+      mime = qualityPreset === 'max' ? 'image/png' : 'image/jpeg';
+    } else {
+      mime = 'image/jpeg';
+    }
+  }
+
+  const quality = qualityPreset === 'max' ? 0.98 : qualityPreset === 'compact' ? 0.78 : 0.89;
+  const blob = await imageToBlob(canvas, mime, quality);
   releaseCanvas(canvas);
   return blob;
 }
 
 /**
- * Redacts an image-based (scanned) PDF page-by-page.
+ * Redacts an image-based (scanned) PDF page-by-page with JPEG DCT stream compression.
  */
 export async function redactScannedPdf(
   file: File | Blob,
@@ -274,6 +295,7 @@ export async function redactScannedPdf(
   customText?: string,
   regions?: DetectedRegion[],
   redactionColor: string = '#000000',
+  qualityPreset: QualityPreset = 'optimal',
 ): Promise<Blob> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -284,6 +306,7 @@ export async function redactScannedPdf(
   const numPages = pdf.numPages;
 
   let doc: jsPDF | null = null;
+  const quality = qualityPreset === 'max' ? 0.95 : qualityPreset === 'compact' ? 0.75 : 0.86;
 
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
@@ -308,7 +331,7 @@ export async function redactScannedPdf(
       applyRegionRedaction(ctx, pageRegions, PDF_RENDER_SCALE, redactionColor);
     }
 
-    const imgData = canvas.toDataURL('image/png');
+    const imgData = canvas.toDataURL('image/jpeg', quality);
     const pageWidthMM = (viewport.width / PDF_RENDER_SCALE / 72) * 25.4;
     const pageHeightMM = (viewport.height / PDF_RENDER_SCALE / 72) * 25.4;
 
@@ -317,6 +340,7 @@ export async function redactScannedPdf(
         orientation: pageWidthMM > pageHeightMM ? 'landscape' : 'portrait',
         unit: 'mm',
         format: [pageWidthMM, pageHeightMM],
+        compress: true,
       });
     } else {
       doc!.addPage(
@@ -325,7 +349,7 @@ export async function redactScannedPdf(
       );
     }
 
-    doc!.addImage(imgData, 'PNG', 0, 0, pageWidthMM, pageHeightMM, undefined, 'FAST');
+    doc!.addImage(imgData, 'JPEG', 0, 0, pageWidthMM, pageHeightMM, undefined, 'FAST');
     releaseCanvas(canvas);
   }
 
@@ -344,31 +368,43 @@ export async function redactPdf(
   customText?: string,
   regions?: DetectedRegion[],
   redactionColor: string = '#000000',
+  qualityPreset: QualityPreset = 'optimal',
 ): Promise<Blob> {
   if (documentType === 'text-pdf') {
     return redactNativePdfText(file, words, activeTypes, customText, regions, redactionColor);
   } else {
-    return redactScannedPdf(file, words, activeTypes, customText, regions, redactionColor);
+    return redactScannedPdf(file, words, activeTypes, customText, regions, redactionColor, qualityPreset);
   }
 }
 
 /**
- * Combines multiple image blobs into a single multi-page PDF.
+ * Combines multiple image blobs into a single multi-page PDF with high quality JPEG compression.
  */
 export async function exportImagesAsMergedPdf(
-  images: { blob: Blob; width: number; height: number }[]
+  images: { blob: Blob; width: number; height: number }[],
+  qualityPreset: QualityPreset = 'optimal',
 ): Promise<Blob> {
   if (images.length === 0) throw new Error('No images to export');
 
   let doc: jsPDF | null = null;
+  const quality = qualityPreset === 'max' ? 0.96 : qualityPreset === 'compact' ? 0.76 : 0.88;
 
   for (let i = 0; i < images.length; i++) {
     const item = images[i];
-    const dataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(item.blob);
-    });
+    
+    // Draw on offscreen canvas to ensure high-efficiency JPEG compression inside PDF
+    const img = await loadImage(item.blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context failed');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+    releaseCanvas(canvas);
 
     const widthMM = (item.width / 72) * 25.4;
     const heightMM = (item.height / 72) * 25.4;
@@ -378,12 +414,13 @@ export async function exportImagesAsMergedPdf(
         orientation: widthMM > heightMM ? 'landscape' : 'portrait',
         unit: 'mm',
         format: [widthMM, heightMM],
+        compress: true,
       });
     } else {
       doc!.addPage([widthMM, heightMM], widthMM > heightMM ? 'landscape' : 'portrait');
     }
 
-    doc!.addImage(dataUrl, 'PNG', 0, 0, widthMM, heightMM, undefined, 'FAST');
+    doc!.addImage(jpegDataUrl, 'JPEG', 0, 0, widthMM, heightMM, undefined, 'FAST');
   }
 
   return doc!.output('blob');
