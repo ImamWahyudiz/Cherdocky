@@ -149,7 +149,12 @@ const triggerDownloadBlob = (blob: Blob, filename: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 };
 
-const executeDirectRedaction = async (qualityPreset: QualityPreset = 'optimal', autoDownload = false, forcedFormat?: 'image/jpeg' | 'image/png') => {
+const executeDirectRedaction = async (
+  qualityPreset: QualityPreset = 'optimal',
+  autoDownload = false,
+  forcedFormat?: 'image/jpeg' | 'image/png',
+  customFilename?: string
+) => {
   isRedacting.value = true;
   try {
     if (documentType.value === 'text-pdf' || documentType.value === 'image-pdf') {
@@ -165,7 +170,7 @@ const executeDirectRedaction = async (qualityPreset: QualityPreset = 'optimal', 
         qualityPreset
       );
 
-      const fname = `redacted_${file.value.name}`;
+      const fname = customFilename || 'redacted-pdf.pdf';
       exportedBlob.value = redactedBlob;
       exportedFilename.value = fname;
       exportedFileSize.value = redactedBlob.size;
@@ -194,9 +199,8 @@ const executeDirectRedaction = async (qualityPreset: QualityPreset = 'optimal', 
         forcedFormat
       );
 
-      const baseName = (file.value ? file.value.name : 'image.png').replace(/\.[^/.]+$/, '');
       const ext = forcedFormat === 'image/png' ? 'png' : 'jpg';
-      const fname = `redacted_${baseName}.${ext}`;
+      const fname = customFilename || `redacted-image.${ext}`;
       exportedBlob.value = redactedBlob;
       exportedFilename.value = fname;
       exportedFileSize.value = redactedBlob.size;
@@ -214,7 +218,7 @@ const executeDirectRedaction = async (qualityPreset: QualityPreset = 'optimal', 
   }
 };
 
-const exportSingleImageAsPdf = async (qualityPreset: QualityPreset = 'optimal', autoDownload = true) => {
+const exportSingleImageAsPdf = async (qualityPreset: QualityPreset = 'optimal', autoDownload = true, customFilename?: string) => {
   isRedacting.value = true;
   try {
     const targetPage = verifiedPages.value[0];
@@ -239,8 +243,7 @@ const exportSingleImageAsPdf = async (qualityPreset: QualityPreset = 'optimal', 
       qualityPreset
     );
 
-    const baseName = (file.value?.name || 'gambar').replace(/\.[^/.]+$/, '');
-    const fname = `redacted_${baseName}.pdf`;
+    const fname = customFilename || 'redacted-image.pdf';
     exportedBlob.value = pdfBlob;
     exportedFilename.value = fname;
     exportedFileSize.value = pdfBlob.size;
@@ -256,7 +259,7 @@ const exportSingleImageAsPdf = async (qualityPreset: QualityPreset = 'optimal', 
   }
 };
 
-const exportMultiImagesAsMergedPdfChoice = async (qualityPreset: QualityPreset = 'optimal', autoDownload = false) => {
+const exportMultiImagesAsMergedPdfChoice = async (qualityPreset: QualityPreset = 'optimal', autoDownload = false, customFilename?: string) => {
   isRedacting.value = true;
 
   try {
@@ -286,7 +289,7 @@ const exportMultiImagesAsMergedPdfChoice = async (qualityPreset: QualityPreset =
     }
 
     const pdfBlob = await exportImagesAsMergedPdf(redactedImagesList, qualityPreset);
-    const fname = 'redacted_dokumen_gabungan.pdf';
+    const fname = customFilename || 'redacted-images.pdf';
     exportedBlob.value = pdfBlob;
     exportedFilename.value = fname;
     exportedFileSize.value = pdfBlob.size;
@@ -303,7 +306,7 @@ const exportMultiImagesAsMergedPdfChoice = async (qualityPreset: QualityPreset =
   }
 };
 
-const exportMultiImagesAsZipChoice = async (autoDownload = true) => {
+const exportMultiImagesAsZipChoice = async (autoDownload = true, customFilename?: string) => {
   isRedacting.value = true;
 
   try {
@@ -326,13 +329,12 @@ const exportMultiImagesAsZipChoice = async (autoDownload = true) => {
         'optimal'
       );
 
-      const safeName = (page.label || `gambar_${i + 1}`).replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filename = safeName.endsWith('.png') || safeName.endsWith('.jpg') ? `redacted_${safeName}` : `redacted_${safeName}.jpg`;
+      const filename = `redacted-image-${i + 1}.jpg`;
       zipFiles.push({ name: filename, blob: redactedBlob });
     }
 
     const zipBlob = await createZipBlob(zipFiles);
-    const fname = 'redacted_gambar_dokumen.zip';
+    const fname = customFilename || 'redacted-images.zip';
     exportedBlob.value = zipBlob;
     exportedFilename.value = fname;
     exportedFileSize.value = zipBlob.size;
@@ -349,43 +351,47 @@ const exportMultiImagesAsZipChoice = async (autoDownload = true) => {
   }
 };
 
-const handleDownloadOption = async (option: string) => {
+const handleDownloadOption = async (payload: string | { option: string; customFilename?: string }) => {
+  const option = typeof payload === 'string' ? payload : payload.option;
+  const customName = typeof payload === 'object' ? payload.customFilename : undefined;
+
   switch (option) {
     case 'image-optimal':
-      await executeDirectRedaction('optimal', true, 'image/jpeg');
+      await executeDirectRedaction('optimal', true, 'image/jpeg', customName);
       break;
     case 'image-max':
-      await executeDirectRedaction('max', true, 'image/png');
+      await executeDirectRedaction('max', true, 'image/png', customName);
       break;
     case 'single-pdf-optimal':
-      await exportSingleImageAsPdf('optimal', true);
+      await exportSingleImageAsPdf('optimal', true, customName);
       break;
     case 'multi-pdf-optimal':
-      await exportMultiImagesAsMergedPdfChoice('optimal', true);
+      await exportMultiImagesAsMergedPdfChoice('optimal', true, customName);
       break;
     case 'multi-pdf-max':
-      await exportMultiImagesAsMergedPdfChoice('max', true);
+      await exportMultiImagesAsMergedPdfChoice('max', true, customName);
       break;
     case 'multi-zip':
-      await exportMultiImagesAsZipChoice(true);
+      await exportMultiImagesAsZipChoice(true, customName);
       break;
     case 'scanned-pdf-optimal':
-      await executeDirectRedaction('optimal', true);
+      await executeDirectRedaction('optimal', true, undefined, customName);
       break;
     case 'scanned-pdf-max':
-      await executeDirectRedaction('max', true);
+      await executeDirectRedaction('max', true, undefined, customName);
       break;
     default:
       if (exportedBlob.value) {
-        triggerDownloadBlob(exportedBlob.value, exportedFilename.value);
+        triggerDownloadBlob(exportedBlob.value, customName || exportedFilename.value);
       }
       break;
   }
 };
 
-const handleDownloadDirect = () => {
+const handleDownloadDirect = (customFilename?: string) => {
   if (exportedBlob.value) {
-    triggerDownloadBlob(exportedBlob.value, exportedFilename.value);
+    const finalName = customFilename || exportedFilename.value;
+    triggerDownloadBlob(exportedBlob.value, finalName);
   }
 };
 

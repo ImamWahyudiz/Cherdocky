@@ -14,22 +14,38 @@
       </p>
     </div>
 
-    <!-- Main Download Action Box (Only One Primary Download Button) -->
+    <!-- Main Download Action Box (With Customizable Filename) -->
     <div class="w-full bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-7 shadow-2xl mb-6">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
         
-        <!-- File Info Summary -->
-        <div class="flex items-center gap-4 w-full sm:w-auto">
-          <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-blue-950/60 border border-blue-800/80 text-blue-400 flex items-center justify-center flex-shrink-0 shadow-inner">
+        <!-- File Info Summary & Customizable Filename Input -->
+        <div class="flex items-start sm:items-center gap-4 w-full lg:w-auto flex-1 min-w-0">
+          <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-blue-950/60 border border-blue-800/80 text-blue-400 flex items-center justify-center flex-shrink-0 shadow-inner mt-1 sm:mt-0">
             <FileText v-if="stats.documentType.includes('pdf')" class="w-7 h-7" />
             <Layers v-else-if="stats.documentType === 'image' && stats.totalPages > 1" class="w-7 h-7" />
             <FileImage v-else class="w-7 h-7" />
           </div>
-          <div class="min-w-0">
-            <h2 class="text-base sm:text-lg font-bold text-white truncate max-w-xs sm:max-w-md">
-              {{ filename || 'dokumen_redacted.pdf' }}
-            </h2>
-            <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-400">
+          
+          <div class="flex-1 min-w-0 w-full">
+            <label class="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <span>Nama Berkas Unduhan:</span>
+              <span class="text-[10px] text-blue-400 font-normal lowercase">(dapat diubah sesuai keinginan)</span>
+            </label>
+            
+            <div class="relative flex items-center max-w-md w-full">
+              <input
+                type="text"
+                v-model="userBaseFilename"
+                :placeholder="getDefaultBaseName()"
+                class="w-full bg-gray-950/90 border border-gray-700 hover:border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 text-white text-sm font-semibold rounded-xl pl-3.5 pr-16 py-2.5 transition-all outline-none font-mono"
+                title="Ketik untuk mengubah nama berkas yang akan diunduh"
+              />
+              <span class="absolute right-2 px-2 py-1 rounded-md bg-gray-800 border border-gray-700 text-xs font-mono font-bold text-blue-400 pointer-events-none">
+                {{ fileExtension }}
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-400">
               <span class="px-2 py-0.5 rounded bg-gray-800 border border-gray-700 font-semibold text-gray-300">
                 {{ stats.documentType === 'text-pdf' ? 'PDF Teks Asli' : stats.documentType === 'image-pdf' ? 'PDF Visual Scan' : stats.totalPages > 1 ? `${stats.totalPages} Lembar Gambar` : 'Gambar' }}
               </span>
@@ -45,13 +61,13 @@
         </div>
 
         <!-- Single Primary Download Button -->
-        <div class="w-full sm:w-auto flex justify-end">
+        <div class="w-full lg:w-auto flex justify-end flex-shrink-0">
           <button
             type="button"
             @click="handleMainDownloadClick"
-            class="w-full sm:w-auto h-11 px-7 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
+            class="w-full sm:w-auto h-12 px-8 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2.5"
           >
-            <Download class="w-4 h-4" />
+            <Download class="w-5 h-5 stroke-[2.5]" />
             <span>Unduh Dokumen</span>
           </button>
         </div>
@@ -457,7 +473,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   CheckCircle2,
   Download,
@@ -491,11 +507,57 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'download-direct'): void;
-  (e: 'download-option', option: string): void;
+  (e: 'download-direct', customFilename: string): void;
+  (e: 'download-option', payload: { option: string; customFilename: string }): void;
   (e: 'edit-again'): void;
   (e: 'new-document'): void;
 }>();
+
+const userBaseFilename = ref('');
+
+const fileExtension = computed(() => {
+  const name = props.filename || 'dokumen_redacted.pdf';
+  const lastDot = name.lastIndexOf('.');
+  if (lastDot !== -1) {
+    return name.substring(lastDot);
+  }
+  return props.stats.documentType.includes('pdf') ? '.pdf' : '.jpg';
+});
+
+function getDefaultBaseName(): string {
+  if (props.stats.documentType.includes('pdf')) {
+    return 'redacted-pdf';
+  } else if (props.stats.totalPages > 1) {
+    return 'redacted-images';
+  } else {
+    return 'redacted-image';
+  }
+}
+
+watch(
+  () => props.filename,
+  (newVal) => {
+    if (newVal) {
+      const lastDot = newVal.lastIndexOf('.');
+      userBaseFilename.value = lastDot !== -1 ? newVal.substring(0, lastDot) : newVal;
+    } else {
+      userBaseFilename.value = getDefaultBaseName();
+    }
+  },
+  { immediate: true }
+);
+
+function getCleanBaseName(): string {
+  const base = userBaseFilename.value.trim() || getDefaultBaseName();
+  return base.replace(/[/\\?%*:|"<>]/g, '_');
+}
+
+function getFinalFilename(customExt?: string): string {
+  const cleanBase = getCleanBaseName();
+  const ext = customExt || fileExtension.value;
+  const normalizedExt = ext.startsWith('.') ? ext : `.${ext}`;
+  return `${cleanBase}${normalizedExt}`;
+}
 
 const showSingleImageChoiceModal = ref(false);
 const showMultiImageChoiceModal = ref(false);
@@ -538,7 +600,7 @@ const uniqueRedactedWordsList = computed(() => {
 function handleMainDownloadClick() {
   // Case 1: Native Vector PDF -> Direct Download (already small and lossless)
   if (props.stats.documentType === 'text-pdf') {
-    emit('download-direct');
+    emit('download-direct', getFinalFilename('.pdf'));
     return;
   }
 
@@ -560,14 +622,22 @@ function handleMainDownloadClick() {
     return;
   }
 
-  emit('download-direct');
+  emit('download-direct', getFinalFilename());
 }
 
 function chooseOption(option: string) {
   showSingleImageChoiceModal.value = false;
   showMultiImageChoiceModal.value = false;
   showScannedPdfChoiceModal.value = false;
-  emit('download-option', option);
+
+  let ext = '.pdf';
+  if (option === 'image-optimal') ext = '.jpg';
+  else if (option === 'image-max') ext = '.png';
+  else if (option === 'multi-zip') ext = '.zip';
+  else if (option.includes('pdf')) ext = '.pdf';
+
+  const customFilename = getFinalFilename(ext);
+  emit('download-option', { option, customFilename });
 }
 </script>
 

@@ -78,7 +78,7 @@
         <!-- Scrollable Document Canvas Viewport -->
         <main
           ref="scrollContainer"
-          class="w-full h-full overflow-auto p-3 sm:p-6 flex justify-center items-start min-h-0 select-none relative custom-dark-scrollbar"
+          class="w-full h-full overflow-auto p-3 sm:p-6 min-h-0 select-none relative custom-dark-scrollbar flex"
           :class="[
             interactionMode === 'pan' ? 'cursor-grab active:cursor-grabbing' :
             interactionMode === 'block' ? 'cursor-crosshair' : 'cursor-crosshair'
@@ -86,35 +86,47 @@
           :style="{
             touchAction: interactionMode === 'pan' ? 'pan-x pan-y' : 'none'
           }"
+          @scroll.passive="onViewportScroll"
           @wheel="onWheel"
           @pointerdown="onContainerPointerDown"
           @pointermove="onContainerPointerMove"
           @pointerup="onContainerPointerUp"
           @pointercancel="onContainerPointerCancel"
         >
-          <!-- Canvas Transform Container -->
-          <div
-            ref="canvasStack"
-            class="flex flex-col items-center gap-6 py-4 pb-28 sm:pb-32 transition-transform duration-75 origin-top"
-            :style="{
-              transform: `scale(${zoomLevel})`,
-              transformOrigin: 'top center'
-            }"
-          >
-            <!-- Multi-Page / Multi-Image Sheet List -->
+          <!-- Outer Center Wrapper (Centers content when small, allows full left-to-right scroll without clipping when overflowing) -->
+          <div class="m-auto flex flex-col items-center justify-start flex-shrink-0 transition-all duration-75">
+            <!-- Scaled Boundary Box -->
             <div
-              v-for="(page, pIdx) in localPages"
-              :key="page.id"
-              :ref="(el) => { if (el) pageElements[page.id] = el as HTMLDivElement }"
-              class="relative bg-white shadow-2xl rounded-sm transition-all flex-shrink-0"
+              class="relative flex-shrink-0 origin-top-left transition-all duration-75"
               :style="{
-                width: page.width + 'px',
-                height: page.height + 'px'
+                width: scaledContainerWidth + 'px',
+                height: scaledContainerHeight + 'px',
               }"
-              @pointerdown="(e) => onPagePointerDown(e, page)"
-              @pointermove="(e) => onPagePointerMove(e, page)"
-              @pointerup="(e) => onPagePointerUp(e, page)"
             >
+              <!-- Canvas Stack Container -->
+              <div
+                ref="canvasStack"
+                class="absolute top-0 left-0 flex flex-col items-center gap-6 py-4 pb-28 sm:pb-32 origin-top-left transition-transform duration-75"
+                :style="{
+                  width: maxPageUnscaledWidth + 'px',
+                  transform: `scale(${zoomLevel})`,
+                  transformOrigin: 'top left'
+                }"
+              >
+                <!-- Multi-Page / Multi-Image Sheet List -->
+                <div
+                  v-for="(page, pIdx) in localPages"
+                  :key="page.id"
+                  :ref="(el) => { if (el) pageElements[page.id] = el as HTMLDivElement }"
+                  class="relative bg-white shadow-2xl rounded-sm transition-all flex-shrink-0 mx-auto"
+                  :style="{
+                    width: page.width + 'px',
+                    height: page.height + 'px'
+                  }"
+                  @pointerdown="(e) => onPagePointerDown(e, page)"
+                  @pointermove="(e) => onPagePointerMove(e, page)"
+                  @pointerup="(e) => onPagePointerUp(e, page)"
+                >
               <!-- Page Header Index Badge -->
               <div class="absolute -top-7 left-0 right-0 flex items-center justify-between text-xs text-gray-400 font-medium px-1 pointer-events-none">
                 <div class="flex items-center gap-1.5">
@@ -159,13 +171,13 @@
               <!-- 1. Text Bounding Boxes -->
               <template v-for="word in getWordsForPage(page.pageIndex)" :key="'word-' + page.id + '-' + word.globalIndex">
                 <div
-                  class="absolute flex items-center justify-center overflow-visible group transition-all"
+                  class="absolute flex items-center justify-center overflow-visible group transition-all pointer-events-none"
                   :class="[
                     isWordRedacted(word.globalIndex, word)
-                      ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer pointer-events-auto'
+                      ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer'
                       : documentType === 'text-pdf'
-                        ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer pointer-events-auto z-10'
-                        : 'border border-emerald-500/15 bg-emerald-500/5 pointer-events-none z-10'
+                        ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer z-10'
+                        : 'border border-emerald-500/25 bg-emerald-500/10 z-10'
                   ]"
                   :style="{
                     left: word.x + 'px',
@@ -173,8 +185,6 @@
                     width: word.width + 'px',
                     height: word.height + 'px'
                   }"
-                  @pointerdown.stop
-                  @click.stop="toggleWord(word.globalIndex)"
                 >
                   <!-- Tooltip hover on desktop -->
                   <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black/90 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap z-30 pointer-events-none shadow-lg">
@@ -188,7 +198,7 @@
                 <div
                   v-for="(region, fIdx) in getFaceRegionsForPage(page.pageIndex)"
                   :key="'face-' + pIdx + '-' + fIdx"
-                  class="absolute z-20 transition-all cursor-pointer pointer-events-auto group"
+                  class="absolute z-20 transition-all cursor-pointer pointer-events-none group"
                   :class="!isFaceActive(getFaceId(page.pageIndex, fIdx))
                     ? 'border-2 border-dashed border-gray-400 bg-gray-400/10 opacity-50 hover:opacity-80'
                     : 'border-2 border-purple-500 bg-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.6)] hover:bg-purple-500/40'"
@@ -198,8 +208,6 @@
                     width: region.w + 'px',
                     height: region.h + 'px'
                   }"
-                  @pointerdown.stop
-                  @click.stop="toggleFaceSelection(getFaceId(page.pageIndex, fIdx))"
                   :title="isFaceActive(getFaceId(page.pageIndex, fIdx)) ? 'Klik untuk batal sensor wajah ini' : 'Klik untuk menyensor wajah ini'"
                 >
                   <!-- Badge Tag -->
@@ -311,7 +319,9 @@
               </div>
             </div>
           </div>
-        </main>
+        </div>
+      </div>
+    </main>
 
         <!-- Floating Glassmorphism Toolbar: Strictly ABSOLUTE inside Canvas Area, never overlaps sidebar or bottom panel -->
         <div class="absolute bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 max-w-[calc(100%-16px)] sm:max-w-[calc(100%-32px)] pointer-events-none flex flex-col items-center gap-1.5">
@@ -879,6 +889,27 @@ const ZOOM_MIN = 0.15;
 const ZOOM_MAX = 4.0;
 const ZOOM_STEP = 0.15;
 
+const maxPageUnscaledWidth = computed(() => {
+  if (localPages.value.length === 0) return 800;
+  return Math.max(...localPages.value.map((p) => p.width || 800));
+});
+
+const totalPagesUnscaledHeight = computed(() => {
+  if (localPages.value.length === 0) return 1000;
+  const gapTotal = Math.max(0, localPages.value.length - 1) * 24; // 24px per gap-6
+  const paddingOffset = 160; // py-4 + pb-28/pb-32
+  const pagesSum = localPages.value.reduce((acc, p) => acc + (p.height || 1000), 0);
+  return pagesSum + gapTotal + paddingOffset;
+});
+
+const scaledContainerWidth = computed(() => {
+  return Math.ceil(maxPageUnscaledWidth.value * zoomLevel.value);
+});
+
+const scaledContainerHeight = computed(() => {
+  return Math.ceil(totalPagesUnscaledHeight.value * zoomLevel.value);
+});
+
 // --- Interaction Mode State ---
 type InteractionMode = 'pan' | 'block' | 'scan';
 const interactionMode = ref<InteractionMode>('pan');
@@ -1332,21 +1363,48 @@ function clearAllManualSelectedWords() {
 }
 
 // --- Zoom & Auto-Fit Navigation ---
+function applyZoom(nextZoom: number, anchorClientX?: number, anchorClientY?: number) {
+  const boundedZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +nextZoom.toFixed(2)));
+  if (!scrollContainer.value || boundedZoom === zoomLevel.value) {
+    zoomLevel.value = boundedZoom;
+    return;
+  }
+
+  const container = scrollContainer.value;
+  const oldZoom = zoomLevel.value;
+  const containerRect = container.getBoundingClientRect();
+
+  // Anchor point relative to viewport
+  const ax = anchorClientX !== undefined ? (anchorClientX - containerRect.left) : (container.clientWidth / 2);
+  const ay = anchorClientY !== undefined ? (anchorClientY - containerRect.top) : (container.clientHeight / 2);
+
+  // Content coordinates before zoom
+  const contentX = (container.scrollLeft + ax) / oldZoom;
+  const contentY = (container.scrollTop + ay) / oldZoom;
+
+  zoomLevel.value = boundedZoom;
+
+  nextTick(() => {
+    container.scrollLeft = Math.max(0, contentX * boundedZoom - ax);
+    container.scrollTop = Math.max(0, contentY * boundedZoom - ay);
+  });
+}
+
 function onWheel(e: WheelEvent) {
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-    zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomLevel.value + delta));
+    applyZoom(zoomLevel.value + delta, e.clientX, e.clientY);
   }
 }
 
 function zoomIn() {
-  zoomLevel.value = Math.min(ZOOM_MAX, +(zoomLevel.value + ZOOM_STEP).toFixed(2));
+  applyZoom(zoomLevel.value + ZOOM_STEP);
   setToolInfo(`Zoom: ${Math.round(zoomLevel.value * 100)}%`);
 }
 
 function zoomOut() {
-  zoomLevel.value = Math.max(ZOOM_MIN, +(zoomLevel.value - ZOOM_STEP).toFixed(2));
+  applyZoom(zoomLevel.value - ZOOM_STEP);
   setToolInfo(`Zoom: ${Math.round(zoomLevel.value * 100)}%`);
 }
 
@@ -1367,6 +1425,12 @@ function zoomReset() {
   const targetScale = Math.min(scaleW, scaleH > 0.3 ? scaleH : scaleW);
   zoomLevel.value = Math.min(1.2, Math.max(ZOOM_MIN, +targetScale.toFixed(2)));
   setToolInfo(`Pas Layar (${Math.round(zoomLevel.value * 100)}%)`);
+  nextTick(() => {
+    if (scrollContainer.value) {
+      scrollContainer.value.scrollLeft = 0;
+      scrollContainer.value.scrollTop = 0;
+    }
+  });
 }
 
 // --- Rotation Methods (Mathematical 90° Transform) ---
@@ -1583,9 +1647,23 @@ async function handleFaceDetectionToggle() {
   }
 }
 
-// --- Multi-Touch & Pointer Event Handling ---
-const CLICK_THRESHOLD = 6;
-const MIN_DRAG_SIZE = 10;
+// --- Multi-Touch, Tap vs Scroll Discrimination & Pointer Event Handling ---
+const TAP_MAX_DISTANCE_TOUCH = 14; // pixels on screen for mobile touch
+const TAP_MAX_DISTANCE_MOUSE = 8;  // pixels on screen for mouse click
+const TAP_MAX_TIME_MS = 380;       // max ms duration for single tap
+const MIN_DRAG_RECT_SIZE = 12;     // min rect dimension (px) to confirm drag box creation
+
+// Interaction tracking
+let touchStartTime = 0;
+let screenStartX = 0;
+let screenStartY = 0;
+let hasScrolled = false;
+let pointerDownPageId: string | null = null;
+let pointerDownPageCoords = { x: 0, y: 0 };
+
+function onViewportScroll() {
+  hasScrolled = true;
+}
 
 function getPageRelativeCoords(clientX: number, clientY: number, pageEl: HTMLElement): { x: number; y: number } {
   const rect = pageEl.getBoundingClientRect();
@@ -1616,6 +1694,8 @@ function onContainerPointerDown(e: PointerEvent) {
   if (activePointers.size === 2) {
     isDrawing.value = false;
     isPanning = false;
+    hasScrolled = true;
+    pointerDownPageId = null;
     const pts = Array.from(activePointers.values());
     initialPinchDistance = getPinchDistance(pts[0], pts[1]);
     initialPinchZoom = zoomLevel.value;
@@ -1646,67 +1726,75 @@ function onContainerPointerMove(e: PointerEvent) {
     return;
   }
 
+  const screenDist = Math.hypot(e.clientX - screenStartX, e.clientY - screenStartY);
+  const tapThreshold = e.pointerType === 'touch' ? TAP_MAX_DISTANCE_TOUCH : TAP_MAX_DISTANCE_MOUSE;
+
+  if (screenDist > tapThreshold) {
+    if (interactionMode.value === 'pan') {
+      hasScrolled = true;
+    }
+  }
+
   // 1-Finger Pan Movement
   if (isPanning && scrollContainer.value && activePointers.size === 1) {
     const dx = e.clientX - panStartX;
     const dy = e.clientY - panStartY;
+    if (Math.hypot(dx, dy) > tapThreshold) {
+      hasScrolled = true;
+    }
     scrollContainer.value.scrollLeft = panScrollLeft - dx;
     scrollContainer.value.scrollTop = panScrollTop - dy;
     return;
   }
 
-  // Drawing Redaction / Scan Box
-  if (isDrawing.value && activeDragPageId.value) {
-    const pageEl = pageElements.value[activeDragPageId.value];
-    const page = localPages.value.find((p) => p.id === activeDragPageId.value);
-    if (pageEl && page) {
-      const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
-      pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
-      pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
+  // Drawing Redaction / Scan Box (only when in block/scan mode and moved past tap threshold)
+  if (activeDragPageId.value && (interactionMode.value === 'block' || interactionMode.value === 'scan')) {
+    if (screenDist > tapThreshold) {
+      isDrawing.value = true;
+    }
+    if (isDrawing.value) {
+      const pageEl = pageElements.value[activeDragPageId.value];
+      const page = localPages.value.find((p) => p.id === activeDragPageId.value);
+      if (pageEl && page) {
+        const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
+        pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
+        pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
+      }
     }
   }
 }
 
 async function onContainerPointerUp(e: PointerEvent) {
+  const duration = performance.now() - touchStartTime;
+  const screenDist = Math.hypot(e.clientX - screenStartX, e.clientY - screenStartY);
+  const tapThreshold = e.pointerType === 'touch' ? TAP_MAX_DISTANCE_TOUCH : TAP_MAX_DISTANCE_MOUSE;
+  const isTap = !hasScrolled && screenDist <= tapThreshold && duration <= TAP_MAX_TIME_MS;
+
+  const targetPageId = pointerDownPageId || activeDragPageId.value;
+  const page = targetPageId ? localPages.value.find((p) => p.id === targetPageId) : null;
+  const pageEl = targetPageId ? pageElements.value[targetPageId] : null;
+
   activePointers.delete(e.pointerId);
   isPanning = false;
 
-  if (isDrawing.value && activeDragPageId.value) {
-    const page = localPages.value.find((p) => p.id === activeDragPageId.value);
-    const pageEl = pageElements.value[activeDragPageId.value];
-    isDrawing.value = false;
+  // Case 1: Genuine Instant Tap/Click across ALL modes (pan, block, scan)
+  if (isTap && page) {
+    handleTapOnPage(page, pointerDownPageCoords);
+  }
+  // Case 2: Drag Box Completed (block or scan mode)
+  else if (isDrawing.value && page && pageEl && (interactionMode.value === 'block' || interactionMode.value === 'scan')) {
+    const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
+    const rect = {
+      x: Math.min(pointerStartX.value, coords.x),
+      y: Math.min(pointerStartY.value, coords.y),
+      w: Math.abs(coords.x - pointerStartX.value),
+      h: Math.abs(coords.y - pointerStartY.value),
+    };
 
-    if (page && pageEl) {
-      const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
-      const dx = Math.abs(coords.x - pointerStartX.value);
-      const dy = Math.abs(coords.y - pointerStartY.value);
-
-      // Check Tap on word, face, or manual block
-      if (dx < CLICK_THRESHOLD && dy < CLICK_THRESHOLD) {
-        handleTapOnPage(page, coords);
-        activeDragPageId.value = null;
-        return;
-      }
-
-      // Drag Box Completed
-      const rect = {
-        x: Math.min(pointerStartX.value, coords.x),
-        y: Math.min(pointerStartY.value, coords.y),
-        w: Math.abs(coords.x - pointerStartX.value),
-        h: Math.abs(coords.y - pointerStartY.value),
-      };
-
-      activeDragPageId.value = null;
-
-      if (rect.w < MIN_DRAG_SIZE || rect.h < MIN_DRAG_SIZE) {
-        return;
-      }
-
-      // Action based on mode
+    if (rect.w >= MIN_DRAG_RECT_SIZE && rect.h >= MIN_DRAG_RECT_SIZE) {
       if (interactionMode.value === 'scan') {
         await runPageRegionScan(page, rect);
       } else {
-        // Mode Block
         if (!page.manualRegions) page.manualRegions = [];
         page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
         setToolInfo('Area berhasil diblokir manual');
@@ -1714,7 +1802,9 @@ async function onContainerPointerUp(e: PointerEvent) {
     }
   }
 
+  isDrawing.value = false;
   activeDragPageId.value = null;
+  pointerDownPageId = null;
 }
 
 function onContainerPointerCancel(e: PointerEvent) {
@@ -1722,6 +1812,7 @@ function onContainerPointerCancel(e: PointerEvent) {
   isPanning = false;
   isDrawing.value = false;
   activeDragPageId.value = null;
+  pointerDownPageId = null;
 }
 
 // Page Specific Pointer Handlers
@@ -1732,32 +1823,31 @@ function onPagePointerDown(e: PointerEvent, page: DocumentPageItem) {
 
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
+  // Record initial gesture state
+  hasScrolled = false;
+  touchStartTime = performance.now();
+  screenStartX = e.clientX;
+  screenStartY = e.clientY;
+  pointerDownPageId = page.id;
+  activeDragPageId.value = page.id;
+
   const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
   pointerStartX.value = coords.x;
   pointerStartY.value = coords.y;
   pointerCurrentX.value = coords.x;
   pointerCurrentY.value = coords.y;
-  activeDragPageId.value = page.id;
+  pointerDownPageCoords = { x: coords.x, y: coords.y };
 
   if (interactionMode.value !== 'pan') {
-    isDrawing.value = true;
+    isDrawing.value = false;
     try {
       pageEl.setPointerCapture(e.pointerId);
     } catch (_) {}
   }
 }
 
-function onPagePointerMove(e: PointerEvent, page: DocumentPageItem) {
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-
-  if (isDrawing.value && activeDragPageId.value === page.id) {
-    const pageEl = pageElements.value[page.id];
-    if (pageEl) {
-      const coords = getPageRelativeCoords(e.clientX, e.clientY, pageEl);
-      pointerCurrentX.value = Math.max(0, Math.min(coords.x, page.width));
-      pointerCurrentY.value = Math.max(0, Math.min(coords.y, page.height));
-    }
-  }
+function onPagePointerMove(e: PointerEvent, _page: DocumentPageItem) {
+  onContainerPointerMove(e);
 }
 
 async function onPagePointerUp(e: PointerEvent, page: DocumentPageItem) {
@@ -1773,9 +1863,15 @@ async function onPagePointerUp(e: PointerEvent, page: DocumentPageItem) {
 function handleTapOnPage(page: DocumentPageItem, coords: { x: number; y: number }) {
   // 1. Check tap on face regions
   if (enableFaceDetection.value && page.faceRegions) {
+    const facePadding = 4;
     for (let i = page.faceRegions.length - 1; i >= 0; i--) {
       const f = page.faceRegions[i];
-      if (coords.x >= f.x && coords.x <= f.x + f.w && coords.y >= f.y && coords.y <= f.y + f.h) {
+      if (
+        coords.x >= f.x - facePadding &&
+        coords.x <= f.x + f.w + facePadding &&
+        coords.y >= f.y - facePadding &&
+        coords.y <= f.y + f.h + facePadding
+      ) {
         const faceId = getFaceId(page.pageIndex, i);
         toggleFaceSelection(faceId);
         return;
@@ -1785,25 +1881,50 @@ function handleTapOnPage(page: DocumentPageItem, coords: { x: number; y: number 
 
   // 2. Check tap on manual region to delete
   const manualList = page.manualRegions || [];
+  const manualPadding = 4;
   for (let i = manualList.length - 1; i >= 0; i--) {
     const r = manualList[i];
-    if (coords.x >= r.x && coords.x <= r.x + r.w && coords.y >= r.y && coords.y <= r.y + r.h) {
+    if (
+      coords.x >= r.x - manualPadding &&
+      coords.x <= r.x + r.w + manualPadding &&
+      coords.y >= r.y - manualPadding &&
+      coords.y <= r.y + r.h + manualPadding
+    ) {
       page.manualRegions.splice(i, 1);
       setToolInfo('Blok manual dihapus');
       return;
     }
   }
 
-  // 3. Check tap on word to toggle redaction
+  // 3. Check tap on word to toggle redaction (with mobile finger touch tolerance)
   const pageWords = getWordsForPage(page.pageIndex);
+  let matchedWord: (SpatialWord & { globalIndex: number }) | null = null;
+  let minDistance = Infinity;
+  const wordPadding = 5;
+
   for (let i = pageWords.length - 1; i >= 0; i--) {
     const w = pageWords[i];
-    if (coords.x >= w.x && coords.x <= w.x + w.width && coords.y >= w.y && coords.y <= w.y + w.height) {
-      toggleWord(w.globalIndex);
-      const isRedactedNow = isWordRedacted(w.globalIndex, w);
-      setToolInfo(isRedactedNow ? `Menyensor "${w.text}"` : `Batal sensor "${w.text}"`);
-      return;
+    if (
+      coords.x >= w.x - wordPadding &&
+      coords.x <= w.x + w.width + wordPadding &&
+      coords.y >= w.y - wordPadding &&
+      coords.y <= w.y + w.height + wordPadding
+    ) {
+      const centerX = w.x + w.width / 2;
+      const centerY = w.y + w.height / 2;
+      const dist = Math.hypot(coords.x - centerX, coords.y - centerY);
+      if (dist < minDistance) {
+        minDistance = dist;
+        matchedWord = w;
+      }
     }
+  }
+
+  if (matchedWord) {
+    toggleWord(matchedWord.globalIndex);
+    const isRedactedNow = isWordRedacted(matchedWord.globalIndex, matchedWord);
+    setToolInfo(isRedactedNow ? `Menyensor "${matchedWord.text}"` : `Batal sensor "${matchedWord.text}"`);
+    return;
   }
 }
 
