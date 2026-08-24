@@ -95,4 +95,58 @@ if (!fs.existsSync(SYNTH_BASELINE) || !fs.existsSync(SYNTH_CURRENT)) {
   console.log('[ok] Synthetic gate passed');
 }
 
+// --- Face detection gate --------------------------------------------------
+// Multi-scale BlazeFace pipeline measured on constructed slices (dense grids
+// with known counts, synthetic collages, rotations, face-free negatives).
+const FACE_BASELINE = path.join(ROOT, 'test', 'eval', 'baseline-face-metrics.json');
+const FACE_CURRENT = path.join(ROOT, 'test-results', 'face-metrics.json');
+const FACE_DROP_TOLERANCE = 0.05;
+
+if (!fs.existsSync(FACE_BASELINE) || !fs.existsSync(FACE_CURRENT)) {
+  console.log('[gate] face metrics missing — run `npx playwright test face-eval` first. Face section skipped (soft).');
+} else {
+  const fb = JSON.parse(fs.readFileSync(FACE_BASELINE, 'utf8'));
+  const fc = JSON.parse(fs.readFileSync(FACE_CURRENT, 'utf8'));
+
+  console.log('\n=== Face detection gate ===');
+  let faceFailures = 0;
+  const checkRate = (label, b, c) => {
+    if (typeof b !== 'number' || typeof c !== 'number') return;
+    const delta = c - b;
+    const bad = delta < -FACE_DROP_TOLERANCE;
+    if (bad) faceFailures++;
+    console.log(
+      `  ${label.padEnd(24)} ${(b * 100).toFixed(1).padStart(5)}% -> ${(c * 100).toFixed(1).padStart(5)}%  ` +
+        `(${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pts)${bad ? '  << REGRESSION' : ''}`,
+    );
+  };
+
+  checkRate('gridMeanCoverage', fb.gridMeanCoverage, fc.gridMeanCoverage);
+  checkRate('idDocRecall', fb.idDocRecall, fc.idDocRecall);
+  checkRate('collageRecall', fb.collageRecall, fc.collageRecall);
+  for (const angle of Object.keys(fb.rotated ?? {})) {
+    checkRate(`rotated ${angle}deg`, fb.rotated[angle]?.recall, fc.rotated?.[angle]?.recall);
+  }
+
+  // False positives on face-free negatives: absolute cap, not a delta —
+  // any textured-scene hallucination redacts real user content.
+  const fpBase = (fb.negatives?.detections ?? 0) / Math.max(1, fb.negatives?.images ?? 1);
+  const fpCur = (fc.negatives?.detections ?? 0) / Math.max(1, fc.negatives?.images ?? 1);
+  const fpBad = fpCur > Math.max(fpBase, 0.01);
+  if (fpBad) faceFailures++;
+  console.log(
+    `  ${'negativesFPPerImage'.padEnd(24)} ${fpBase.toFixed(2).padStart(5)} -> ${fpCur.toFixed(2).padStart(5)}   ${fpBad ? '<< REGRESSION' : ''}`,
+  );
+
+  // Informational only: real group photos have no ground truth, and extra
+  // boxes on ID docs may be genuine secondary portraits.
+  const friendsRate = (fc.friends.imagesWithDetection / Math.max(1, fc.friends.images)) * 100;
+  console.log(
+    `  [info] friends(real): detRate=${friendsRate.toFixed(0)}% avgDets=${(fc.friends.detections / Math.max(1, fc.friends.images)).toFixed(1)} idDocOverdetect=${((fc.idDocOverdetectRate ?? 0) * 100).toFixed(0)}%`,
+  );
+
+  if (faceFailures > 0) fail(`${faceFailures} face regression(s) exceed tolerance`);
+  console.log('[ok] Face gate passed');
+}
+
 console.log('\n[ok] GATE PASSED\n');

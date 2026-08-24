@@ -18,7 +18,79 @@ export interface DetectedRegion {
   score?: number;
 }
 
-let cachedDetector: any = null;
+interface CandidateBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  score: number;
+  // Facial keypoints in image pixels: [rightEye, leftEye, noseTip,
+  // mouthCenter, rightTragion, leftTragion].
+  keypoints?: { x: number; y: number }[];
+}
+
+/**
+ * Convert one raw MediaPipe detection into our candidate format, mapping
+ * coordinates into full-image space (tile offsets included).
+ */
+function extractCandidate(detection: any, offsetX: number, offsetY: number, srcW: number, srcH: number, fallbackScore: number): CandidateBox {
+  const bb = detection.boundingBox;
+  const kps = (detection.keypoints ?? []).map((kp: any) => {
+    // tasks-vision returns normalized [0..1] coordinates for detectors;
+    // guard against runtimes that emit raw pixels instead.
+    const normX = kp.x <= 1.5;
+    const normY = kp.y <= 1.5;
+    return {
+      x: (normX ? kp.x * srcW : kp.x) + offsetX,
+      y: (normY ? kp.y * srcH : kp.y) + offsetY,
+    };
+  });
+  return {
+    x: bb.originX + offsetX,
+    y: bb.originY + offsetY,
+    w: bb.width,
+    h: bb.height,
+    score: detection.categories?.[0]?.score || fallbackScore,
+    keypoints: kps.length === 6 ? kps : undefined,
+  };
+}
+
+/**
+ * Geometric plausibility check on the six BlazeFace keypoints.
+ *
+ * Texture regions (foliage, fabric, busy patterns) occasionally trip the
+ * classifier, but the resulting "faces" carry incoherent landmark layouts.
+ * A real face satisfies all of these regardless of moderate roll/tilt:
+ *   - inter-eye span is a sane fraction of the box width
+ *   - ear-to-ear span exceeds the inter-eye span
+ *   - nose sits below the eye line, mouth below the nose (with slack)
+ *   - the eye line is not rotated beyond ~50 degrees
+ */
+export function keypointsLookLikeFace(kps: { x: number; y: number }[], box: { w: number; h: number }): boolean {
+  const [rightEye, leftEye, nose, mouth, rightTragion, leftTragion] = kps;
+
+  const eyeDist = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
+  const earDist = Math.hypot(leftTragion.x - rightTragion.x, leftTragion.y - rightTragion.y);
+
+  const eyeRatio = eyeDist / Math.max(1, box.w);
+  const earRatio = earDist / Math.max(1, eyeDist);
+  const eyeY = (rightEye.y + leftEye.y) / 2;
+  const boxH = Math.max(1, box.h);
+  let eyeAngleDeg = (Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x) * 180) / Math.PI;
+  if (eyeAngleDeg > 90) eyeAngleDeg = 180 - eyeAngleDeg;
+  if (eyeAngleDeg < -90) eyeAngleDeg = -180 - eyeAngleDeg;
+
+  if (eyeDist < 4) return false;
+  if (eyeRatio < 0.12 || eyeRatio > 0.85) return false;
+  if (earRatio < 0.9 || earRatio > 4.0) return false;
+  if (!(mouth.y > eyeY + boxH * 0.02)) return false;
+  if (!(nose.y > eyeY - boxH * 0.05 && nose.y < mouth.y + boxH * 0.15)) return false;
+  const maxTilt = (55 * Math.PI) / 180;
+  const eyeAngle = Math.abs(Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x));
+  if (eyeAngle > maxTilt && Math.PI - eyeAngle > maxTilt) return false;
+
+  return true;
+}
 
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
@@ -26,21 +98,37 @@ const MODEL_URL =
 const WASM_CDN =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm';
 
+let cachedDetector: any = null;
+
 async function getDetector(): Promise<any> {
   if (cachedDetector) return cachedDetector;
 
   const vision = await import('@mediapipe/tasks-vision');
   const filesetResolver = await vision.FilesetResolver.forVisionTasks(WASM_CDN);
 
-  cachedDetector = await vision.FaceDetector.createFromOptions(filesetResolver, {
-    baseOptions: {
-      modelAssetPath: MODEL_URL,
-      delegate: 'GPU',
-    },
-    runningMode: 'IMAGE',
-    minDetectionConfidence: 0.5,
-    minSuppressionThreshold: 0.30,
-  });
+  // GPU is faster but requires WebGL; headless browsers and some VMs have it
+  // disabled, where creation throws — retry once on CPU instead of failing
+  // detection entirely.
+  const createWith = (delegate: 'GPU' | 'CPU') =>
+    vision.FaceDetector.createFromOptions(filesetResolver, {
+      baseOptions: {
+        modelAssetPath: MODEL_URL,
+        delegate,
+      },
+      runningMode: 'IMAGE',
+      // Measured separation (face-eval harness): real faces score >= 0.84,
+      // textured-scene false positives cluster at 0.51-0.54. 0.6 keeps a
+      // safety margin on both sides.
+      minDetectionConfidence: 0.6,
+      minSuppressionThreshold: 0.30,
+    });
+
+  try {
+    cachedDetector = await createWith('GPU');
+  } catch (e) {
+    console.warn('GPU delegate unavailable for face detection, falling back to CPU:', e);
+    cachedDetector = await createWith('CPU');
+  }
 
   return cachedDetector;
 }
@@ -140,21 +228,13 @@ export async function detectFaces(
 
     onProgress?.('Mendeteksi wajah pada dokumen…');
 
-    const candidateBoxes: DetectedRegion[] = [];
+    const candidateBoxes: CandidateBox[] = [];
 
     // --- Pass 1: Global full-image scan ---
     try {
       const fullRes = detector.detect(imageSource);
-      if (fullRes?.detections) {
-        for (const d of fullRes.detections) {
-          candidateBoxes.push({
-            x: d.boundingBox.originX,
-            y: d.boundingBox.originY,
-            w: d.boundingBox.width,
-            h: d.boundingBox.height,
-            score: d.categories?.[0]?.score || 0.6,
-          });
-        }
+      for (const d of fullRes?.detections ?? []) {
+        candidateBoxes.push(extractCandidate(d, 0, 0, imgW, imgH, 0.6));
       }
     } catch (e) {
       console.warn('Full-scale face detection error:', e);
@@ -188,16 +268,8 @@ export async function detectFaces(
 
           try {
             const tileRes = detector.detect(tileCanvas);
-            if (tileRes?.detections) {
-              for (const d of tileRes.detections) {
-                candidateBoxes.push({
-                  x: d.boundingBox.originX + offsetX,
-                  y: d.boundingBox.originY + offsetY,
-                  w: d.boundingBox.width,
-                  h: d.boundingBox.height,
-                  score: d.categories?.[0]?.score || 0.55,
-                });
-              }
+            for (const d of tileRes?.detections ?? []) {
+              candidateBoxes.push(extractCandidate(d, offsetX, offsetY, tileW, tileH, 0.55));
             }
           } catch (_) {}
         }
@@ -226,16 +298,8 @@ export async function detectFaces(
 
           try {
             const tileRes = detector.detect(tileCanvas);
-            if (tileRes?.detections) {
-              for (const d of tileRes.detections) {
-                candidateBoxes.push({
-                  x: d.boundingBox.originX + offsetX,
-                  y: d.boundingBox.originY + offsetY,
-                  w: d.boundingBox.width,
-                  h: d.boundingBox.height,
-                  score: d.categories?.[0]?.score || 0.5,
-                });
-              }
+            for (const d of tileRes?.detections ?? []) {
+              candidateBoxes.push(extractCandidate(d, offsetX, offsetY, tileW3, tileH3, 0.5));
             }
           } catch (_) {}
         }
@@ -246,9 +310,12 @@ export async function detectFaces(
     tileCanvas.width = 0;
     tileCanvas.height = 0;
 
-    // --- Filter invalid aspect ratios, sizes, and low confidence ---
+    // --- Filter invalid geometry, aspect ratios, sizes, and low confidence ---
     const pageArea = imgW * imgH;
     const filteredBoxes = candidateBoxes.filter((box) => {
+      // Keypoint-geometry gate: texture false positives carry incoherent
+      // landmarks. Detections without keypoints are kept (cannot judge).
+      if (box.keypoints && !keypointsLookLikeFace(box.keypoints, box)) return false;
       if (box.w < 12 || box.h < 12) return false;
       // Drop whole-document false positives: a real face never covers
       // most of the page (a KTP photo is typically < 20% of the area).
@@ -277,7 +344,8 @@ export async function detectFaces(
       const w = Math.min(imgW - x, box.w + padX * 2);
       const h = Math.min(imgH - y, box.h + padTop + padBottom);
 
-      return { x, y, w, h };
+      // Score survives so callers can prioritize / filter by confidence.
+      return { x, y, w, h, score: box.score };
     });
   } catch (error) {
     console.warn('Deteksi wajah tidak tersedia, beralih ke mode manual:', error);

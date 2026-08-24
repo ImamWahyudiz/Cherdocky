@@ -1,0 +1,202 @@
+{
+  "grids": [
+    {
+      "name": "12-face-photo.jpg",
+      "expected": 12,
+      "detected": 12,
+      "coverage": 1
+    },
+    {
+      "name": "15-face-photo.jpg",
+      "expected": 15,
+      "detected": 15,
+      "coverage": 1
+    },
+    {
+      "name": "15-face-photo1.jpg",
+      "expected": 15,
+      "detected": 12,
+      "coverage": 0.8
+    },
+    {
+      "name": "15-face-photo2.jpg",
+      "expected": 15,
+      "detected": 15,
+      "coverage": 1
+    }
+  ],
+  "gridMeanCoverage": 0.95,
+  "idDocs": [
+    {
+      "name": "INDONESIAN_IDCARD_034415.jpg",
+      "detected": 1,
+      "hit": true,
+      "extra": 0,
+      "boxes": [
+        {
+          "x": 1065,
+          "y": 287,
+          "w": 264,
+          "h": 269,
+          "score": 0.925
+        }
+      ]
+    },
+    {
+      "name": "IDn, DOB, no keyword address, DD.jpg",
+      "detected": 2,
+      "hit": true,
+      "extra": 1,
+      "boxes": [
+        {
+          "x": 76,
+          "y": 228,
+          "w": 227,
+          "h": 231,
+          "score": 0.958
+        },
+        {
+          "x": 833,
+          "y": 425,
+          "w": 80,
+          "h": 81,
+          "score": 0.841
+        }
+      ]
+    },
+    {
+      "name": "content under keyword-Name, DoB, no keyword id.jpg",
+      "detected": 1,
+      "hit": true,
+      "extra": 0,
+      "boxes": [
+        {
+          "x": 238,
+          "y": 191,
+          "w": 201,
+          "h": 204,
+          "score": 0.967
+        }
+      ]
+    },
+    {
+      "name": "content under keyword-surname, given name, number, date of birth.png",
+      "detected": 1,
+      "hit": true,
+      "extra": 0,
+      "boxes": [
+        {
+          "x": 67,
+          "y": 261,
+          "w": 241,
+          "h": 245,
+          "score": 0.919
+        }
+      ]
+    },
+    {
+      "name": "NIK, Nama, Alamat dll, Tempat.jpeg",
+      "detected": 1,
+      "hit": true,
+      "extra": 0,
+      "boxes": [
+        {
+          "x": 161,
+          "y": 523,
+          "w": 72,
+          "h": 73,
+          "score": 0.865
+        }
+      ]
+    }
+  ],
+  "idDocRecall": 1,
+  "idDocOverdetectRate": 0.2,
+  "collages": [
+    {
+      "gtCount": 15,
+      "matched": 15,
+      "detections": 15,
+      "meanIoU": 0.1408964363759918
+    }
+  ],
+  "collageRecall": 1,
+  "collagePrecision": 1,
+  "rotated": {
+    "15": {
+      "hits": 8,
+      "total": 8,
+      "recall": 1
+    },
+    "30": {
+      "hits": 8,
+      "total": 8,
+      "recall": 1
+    },
+    "-30": {
+      "hits": 8,
+      "total": 8,
+      "recall": 1
+    },
+    "-15": {
+      "hits": 8,
+      "total": 8,
+      "recall": 1
+    }
+  },
+  "negatives": {
+    "images": 8,
+    "detections": 0,
+    "detail": [
+      {
+        "kind": "textdoc",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "textdoc",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "textdoc",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "texture1",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "texture2",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "texture3",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "texture4",
+        "detections": 0,
+        "scores": []
+      },
+      {
+        "kind": "texture5",
+        "detections": 0,
+        "scores": []
+      }
+    ]
+  },
+  "friends": {
+    "images": 25,
+    "detections": 92,
+    "imagesWithDetection": 25
+  },
+  "debugLogs": {
+    "counts": {},
+    "nonDbg": []
+  }
+}

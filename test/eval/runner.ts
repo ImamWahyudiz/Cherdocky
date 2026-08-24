@@ -1,6 +1,12 @@
 import { processDocument } from '../../src/utils/ocrEngine';
 import { analyzeWords, type OcrWord } from '../../src/utils/piiDetector';
 
+// Dev-only eval hook: multi-scale tiled face detection on an image source.
+(window as any).runFaces = async (source: File | HTMLCanvasElement | HTMLImageElement) => {
+  const { detectFaces } = await import('../../src/utils/faceDetector');
+  return detectFaces(source);
+};
+
 // Dev-only eval hook: raw Tesseract output with NO preprocessing and NO
 // filtering — used to attribute text loss between the OCR engine itself and
 // our pipeline stages (preprocess / filterWords).
