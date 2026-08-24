@@ -1,0 +1,44 @@
+{
+  "images": 20,
+  "fields": {
+    "NIK": {
+      "className": "NIK",
+      "gtCount": 20,
+      "detectedCount": 2,
+      "recall": 0.1
+    },
+    "Nama": {
+      "className": "Nama",
+      "gtCount": 20,
+      "detectedCount": 16,
+      "recall": 0.8
+    },
+    "Tempat Tanggal Lahir": {
+      "className": "Tempat Tanggal Lahir",
+      "gtCount": 20,
+      "detectedCount": 17,
+      "recall": 0.85
+    },
+    "Alamat": {
+      "className": "Alamat",
+      "gtCount": 20,
+      "detectedCount": 9,
+      "recall": 0.45
+    },
+    "Berlaku Hingga": {
+      "className": "Berlaku Hingga",
+      "gtCount": 20,
+      "detectedCount": 0,
+      "recall": 0
+    },
+    "Tanggal KTP Dikeluarkan": {
+      "className": "Tanggal KTP Dikeluarkan",
+      "gtCount": 20,
+      "detectedCount": 17,
+      "recall": 0.85
+    }
+  },
+  "overallRecall": 0.5083333333333333,
+  "falseAutoRate": 0.047619047619047616,
+  "autoWordCount": 63
+}

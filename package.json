@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "eval:fetch": "node scripts/eval/fetch-dataset.mjs",
-    "eval": "playwright test"
+    "eval": "playwright test",
+    "eval:ktp": "playwright test ktp-region-eval",
+    "eval:gate": "node scripts/eval/gate.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.22",
