@@ -119,6 +119,17 @@ Rincian mengenai alur data, arsitektur modul, struktur data, dan catatan evaluas
 
 👉 **[SYSTEM_FLOW.md](SYSTEM_FLOW.md)**
 
+### Dokumentasi Teknis (docs/)
+
+Dokumen mendalam untuk pengembang — cara kerja mesin, cerita proses debugging, dan sistem benchmark:
+
+| Dokumen | Isi |
+|---------|-----|
+| [docs/ocr-engine.md](docs/ocr-engine.md) | Internals pipeline OCR: klasifikasi dokumen, preprocessing, multi-PSM sweep, deteksi PII precision-first |
+| [docs/debugging-chronicle.md](docs/debugging-chronicle.md) | Studi kasus bug nyata (whitelist leak, misrouting screenshot, face false positives) + pelajaran metodologi debugging |
+| [docs/benchmarks.md](docs/benchmarks.md) | Cara kerja benchmark & regression gate, angka terkini, aturan re-baseline yang jujur |
+| [docs/face-recognition-notes.md](docs/face-recognition-notes.md) | Catatan belajar face recognition (Olivetti/eigenfaces) dan penerapannya di Cherdocky |
+
 ---
 
 ## Teknologi yang Digunakan
@@ -167,6 +178,14 @@ Buka browser pada alamat `http://localhost:5173`.
 npm run build
 ```
 File hasil kompilasi akan tersimpan di direktori `dist/`.
+
+### Benchmark & Regression Gate (untuk kontributor)
+```bash
+npm run eval            # semua benchmark Playwright (~7 menit)
+npx vitest run          # unit tests aturan PII
+node scripts/eval/gate.mjs  # gate regresi vs baseline
+```
+Detail lengkap: [docs/benchmarks.md](docs/benchmarks.md).
 
 ---
 

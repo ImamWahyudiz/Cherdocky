@@ -62,3 +62,6 @@ test/eval/result.json
 
 # Reference notebooks with heavy embedded outputs (kept locally)
 test/example code ipynb/
+
+# Personal face dataset (local-only)
+test/Friends/
