@@ -220,6 +220,66 @@ export function applyThreshold(
 /**
  * 3x3 box blur - cheap denoise for JPEG artifacts and salt/pepper.
  */
+/**
+ * Hard binarization at a fixed luminance threshold.
+ *
+ * Used after grayscale+inversion for dark-mode UI screenshots: UI panel fills
+ * (e.g. colored message bubbles) sit well above 128 once inverted while glyph
+ * cores sit far below, so a deterministic slice separates them cleanly.
+ * Data-driven thresholds (Otsu/percentile) can land above the panel fill and
+ * merge entire panels with their text into one black blob.
+ */
+export function applyFixedThreshold(imageData: ImageData, threshold = 128): ImageData {
+  const { data } = imageData;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    const v = gray > threshold ? 255 : 0;
+    data[i] = v;
+    data[i + 1] = v;
+    data[i + 2] = v;
+  }
+  return imageData;
+}
+
+/**
+ * Convert to grayscale (luminance-preserving). Combined with inversion and
+ * Otsu thresholding this rescues dark-mode UI screenshots, whose light-on-dark
+ * glyphs carry soft antialiasing halos that survive plain inversion.
+ */
+export function applyGrayscale(imageData: ImageData): ImageData {
+  const out = new ImageData(
+    new Uint8ClampedArray(imageData.data),
+    imageData.width,
+    imageData.height
+  );
+  const d = out.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const y = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    d[i] = d[i + 1] = d[i + 2] = y;
+  }
+  return out;
+}
+
+/**
+ * Invert colors (255 - value per channel). Used to give dark-mode UI
+ * screenshots (light text on dark background) a second chance through OCR —
+ * Tesseract is trained predominantly on dark-text-on-light-background.
+ */
+export function applyInvert(imageData: ImageData): ImageData {
+  const out = new ImageData(
+    new Uint8ClampedArray(imageData.data),
+    imageData.width,
+    imageData.height
+  );
+  const d = out.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = 255 - d[i];
+    d[i + 1] = 255 - d[i + 1];
+    d[i + 2] = 255 - d[i + 2];
+  }
+  return out;
+}
+
 export function applyBoxBlur(imageData: ImageData, passes: number = 1): ImageData {
   const { data, width, height } = imageData;
   const copy = new Uint8ClampedArray(data);

@@ -292,6 +292,52 @@ export function analyzeWords(
     }
   }
 
+  // --- Label-corroborated NIK (layout evidence over checksum) ---
+  // Generated/stylized IDs frequently carry province/date codes that fail
+  // strict NIK validation, yet a long digit run directly under a literal
+  // "NIK" header is an ID number by layout. Type it as nik and demote
+  // weaker numeric guesses (bank/id) made earlier on the same words.
+  if (activeTypes.includes('nik')) {
+    const nikLabelRe = /^NIK:?$/;
+    for (let i = 0; i < words.length; i++) {
+      if (!nikLabelRe.test((words[i].text ?? '').trim())) continue;
+      const digits: string[] = [];
+      const hitIdx: number[] = [];
+      for (let j = i + 1; j < words.length && j <= i + 4 && digits.join('').length < 16; j++) {
+        const t = (words[j].text ?? '').trim();
+        const d = t.replace(/\D/g, '');
+        if (!d || d.length !== t.replace(/[^0-9A-Za-z]/g, '').length) break;
+        digits.push(d);
+        hitIdx.push((words[j] as any).globalIndex ?? j);
+      }
+      const joined = digits.join('');
+      if (joined.length < 12 || joined.length > 18) continue;
+      for (let k = matches.length - 1; k >= 0; k--) {
+        if (hitIdx.includes(matches[k].wordIndex) && (matches[k].type === 'bank' || matches[k].type === 'id')) {
+          matches.splice(k, 1);
+        }
+      }
+      let conf = 0;
+      for (const idx of hitIdx) {
+        const wj = words.find((x) => ((x as any).globalIndex ?? 0) === idx);
+        conf = Math.max(conf, typeof wj?.confidence === 'number' ? wj.confidence : 80);
+      }
+      const combined = (conf / 100) * 0.85;
+      for (const idx of hitIdx) {
+        matches.push({
+          type: 'nik',
+          wordIndex: idx,
+          text: joined,
+          ruleStrength: 0.85,
+          ocrConf: conf,
+          combined,
+          autoRedact: combined >= autoRedactThreshold,
+          source: 'label',
+        });
+      }
+    }
+  }
+
   // --- Multi-token date scan (e.g. "09 Nov 2002" across 3 consecutive words) ---
   const monthRe = /^(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|january|february|march|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)$/i;
   const dayRe = /^(?:0?[1-9]|[12][0-9]|3[01])$/;

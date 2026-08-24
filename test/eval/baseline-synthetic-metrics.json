@@ -1,0 +1,46 @@
+{
+  "images": 6,
+  "docs": {
+    "bank_mutation": {
+      "wordRecall": 0.9722222222222222,
+      "wordPrecision": 0.9722222222222222,
+      "digitRecall": 1,
+      "detectedWords": 72
+    },
+    "social_post": {
+      "wordRecall": 0.9761904761904762,
+      "wordPrecision": 1,
+      "digitRecall": 1,
+      "detectedWords": 41
+    },
+    "chat_light": {
+      "wordRecall": 0.8409090909090909,
+      "wordPrecision": 0.9487179487179487,
+      "digitRecall": 0.07692307692307693,
+      "detectedWords": 39
+    },
+    "chat_dark": {
+      "wordRecall": 0.8863636363636364,
+      "wordPrecision": 0.9512195121951219,
+      "digitRecall": 0.3076923076923077,
+      "detectedWords": 41
+    },
+    "receipt": {
+      "wordRecall": 1,
+      "wordPrecision": 1,
+      "digitRecall": 1,
+      "detectedWords": 47
+    },
+    "article_news": {
+      "wordRecall": 1,
+      "wordPrecision": 1,
+      "digitRecall": 1,
+      "detectedWords": 101
+    }
+  },
+  "aggregate": {
+    "wordRecall": 0.945947570947571,
+    "wordPrecision": 0.9786932805225489,
+    "digitRecall": 0.7307692307692308
+  }
+}

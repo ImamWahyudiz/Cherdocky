@@ -17,6 +17,8 @@ export const TESSERACT_CONFIGS: Record<DocumentType, TesseractConfig> = {
     psm: 6,                    // Single uniform text block
     lang: 'ind+eng',
     whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,:-/()',
+    // The constrained charset is deliberate for the card's dot-matrix-style
+    // font: it stops the LSTM from reading stylized digits as exotic letters.
   },
   [DocumentType.ID_CARD]: {
     oem: 1,

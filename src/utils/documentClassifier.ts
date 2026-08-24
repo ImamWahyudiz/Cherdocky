@@ -69,3 +69,30 @@ export function preClassifyFromDimensions(width: number, height: number): { type
 
   return { type: suggestedType, confidence: 0.4 };
 }
+
+/**
+ * Content check: does this image look like a UI screenshot / digital render?
+ *
+ * UI captures are dominated by one flat background color, while photos of
+ * physical documents spread pixels across many color buckets. Measured on
+ * synthetic UI captures vs generated+real ID photos, the dominant 12-bit
+ * color bucket share separates them cleanly (UI >= 0.66, photos <= 0.28);
+ * the 0.45 threshold sits far from both populations.
+ *
+ * Used to override the aspect-ratio guess so screen captures never receive
+ * ID-card OCR profiles (whitelists etc. tuned for card fonts).
+ */
+export function isUiScreenshot(imageData: { data: Uint8ClampedArray }): boolean {
+  const d = imageData.data;
+  const step = 4 * Math.max(1, Math.floor(d.length / 4 / 100_000));
+  const buckets = new Map<number, number>();
+  let total = 0;
+  for (let i = 0; i < d.length; i += step) {
+    const key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+    total++;
+  }
+  let top = 0;
+  for (const n of buckets.values()) if (n > top) top = n;
+  return total > 0 && top / total >= 0.45;
+}

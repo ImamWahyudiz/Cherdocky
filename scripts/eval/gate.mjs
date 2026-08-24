@@ -6,10 +6,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const BASELINE = path.join(ROOT, 'test', 'eval', 'baseline-ktp-metrics.json');
 const CURRENT = path.join(ROOT, 'test-results', 'ktp-region-metrics.json');
+const SYNTH_BASELINE = path.join(ROOT, 'test', 'eval', 'baseline-synthetic-metrics.json');
+const SYNTH_CURRENT = path.join(ROOT, 'test-results', 'synthetic-metrics.json');
 
 // Regression tolerance (absolute percentage points).
 const RECALL_DROP_TOLERANCE = 0.05;
 const FALSEAUTO_RISE_TOLERANCE = 0.05;
+// Synthetic docs are deterministic renders — hold them to a stricter bar.
+const SYNTH_DROP_TOLERANCE = 0.02;
 
 function fail(msg) {
   console.error(`\n[x] GATE FAILED: ${msg}`);
@@ -62,4 +66,33 @@ console.log(
 );
 
 if (failures > 0) fail(`${failures} metric regression(s) exceed tolerance`);
+console.log('\n[ok] KTP gate passed');
+
+// --- Synthetic multi-doc gate -------------------------------------------
+// Deterministic rendered documents (bank mutation, chats, receipt, …)
+// measuring generic text extraction — the mission-level benchmark.
+if (!fs.existsSync(SYNTH_BASELINE) || !fs.existsSync(SYNTH_CURRENT)) {
+  console.log('[gate] synthetic metrics missing — run synthetic-eval first. Synthetic section skipped (soft).');
+} else {
+  const sb = JSON.parse(fs.readFileSync(SYNTH_BASELINE, 'utf8'));
+  const sc = JSON.parse(fs.readFileSync(SYNTH_CURRENT, 'utf8'));
+
+  console.log('\n=== Synthetic extraction gate ===');
+  let synthFailures = 0;
+  for (const key of ['wordRecall', 'wordPrecision', 'digitRecall']) {
+    const b = sb.aggregate?.[key];
+    const c = sc.aggregate?.[key];
+    if (typeof b !== 'number' || typeof c !== 'number') continue;
+    const delta = c - b;
+    const bad = delta < -SYNTH_DROP_TOLERANCE;
+    if (bad) synthFailures++;
+    console.log(
+      `  ${key.padEnd(14)} ${(b * 100).toFixed(1).padStart(5)}% -> ${(c * 100).toFixed(1).padStart(5)}%  ` +
+        `(${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pts)${bad ? '  << REGRESSION' : ''}`,
+    );
+  }
+  if (synthFailures > 0) fail(`${synthFailures} synthetic regression(s) exceed tolerance`);
+  console.log('[ok] Synthetic gate passed');
+}
+
 console.log('\n[ok] GATE PASSED\n');
