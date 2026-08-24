@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "eval:fetch": "node scripts/eval/fetch-dataset.mjs",
+    "eval": "playwright test"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.22",
@@ -19,6 +22,7 @@
     "vue": "^3.4.21"
   },
   "devDependencies": {
+    "@playwright/test": "^1.47.0",
     "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^5.0.4",
     "autoprefixer": "^10.4.19",
@@ -26,6 +30,7 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
+    "vitest": "^2.1.0",
     "vue-tsc": "^2.0.6"
   }
 }

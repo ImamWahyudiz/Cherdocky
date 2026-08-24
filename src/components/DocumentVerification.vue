@@ -172,13 +172,7 @@
               <template v-for="word in getWordsForPage(page.pageIndex)" :key="'word-' + page.id + '-' + word.globalIndex">
                 <div
                   class="absolute flex items-center justify-center overflow-visible group transition-all pointer-events-none"
-                  :class="[
-                    isWordRedacted(word.globalIndex, word)
-                      ? 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer'
-                      : documentType === 'text-pdf'
-                        ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer z-10'
-                        : 'border border-emerald-500/25 bg-emerald-500/10 z-10'
-                  ]"
+                  :class="wordBoxClass(word)"
                   :style="{
                     left: word.x + 'px',
                     top: word.y + 'px',
@@ -186,6 +180,14 @@
                     height: word.height + 'px'
                   }"
                 >
+                  <!-- Confidence / type badge for detected words -->
+                  <div
+                    v-if="wordBadge(word)"
+                    class="absolute -top-4 left-0 text-[9px] px-1 rounded-sm font-medium shadow whitespace-nowrap pointer-events-none"
+                    :class="wordBadge(word)?.auto ? 'bg-red-600 text-white' : 'bg-amber-500 text-black'"
+                  >
+                    {{ wordBadge(word)?.text }}
+                  </div>
                   <!-- Tooltip hover on desktop -->
                   <div class="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-black/90 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap z-30 pointer-events-none shadow-lg">
                     {{ word.text }}
@@ -696,6 +698,11 @@
               </div>
             </div>
 
+            <p class="text-[10px] text-gray-400 mb-2 flex items-center gap-3" v-if="analysisMatches.length > 0">
+              <span class="text-red-400 font-medium">● Otomatis: {{ autoRedactCount }}</span>
+              <span class="text-amber-400 font-medium">● Perlu review: {{ reviewNeededCount }}</span>
+            </p>
+
             <div v-if="foundSensitiveKeywords.length > 0" class="space-y-1.5 max-h-44 overflow-y-auto pr-1 custom-dark-scrollbar">
               <label
                 v-for="item in foundSensitiveKeywords"
@@ -845,8 +852,11 @@ import { processRegion, processDocument } from '~/utils/ocrEngine';
 import {
   findContextualPIIWordIndices,
   extractFoundSensitiveKeywords,
+  analyzeWords,
+  PII_CATEGORIES,
   type PIIType,
   type FoundKeywordItem,
+  type SensitiveMatch,
 } from '~/utils/piiDetector';
 import type { DocumentType, DocumentPageItem } from '~/composables/useDocumentIngestion';
 import { detectFaces, type DetectedRegion } from '~/utils/faceDetector';
@@ -1135,6 +1145,54 @@ function showStatus(msg: string, type: 'info' | 'success' | 'warning' | 'error' 
 const foundSensitiveKeywords = computed<FoundKeywordItem[]>(() => {
   return extractFoundSensitiveKeywords(editableWords.value);
 });
+
+// Per-word precision analysis (confidence + auto/review flag) for the review UI.
+const analysisMatches = computed<SensitiveMatch[]>(() =>
+  analyzeWords(editableWords.value, activePiiTypes.value)
+);
+
+const analysisByWord = computed<Map<number, SensitiveMatch>>(() => {
+  const m = new Map<number, SensitiveMatch>();
+  for (const a of analysisMatches.value) {
+    const prev = m.get(a.wordIndex);
+    if (!prev || a.combined > prev.combined) m.set(a.wordIndex, a);
+  }
+  return m;
+});
+
+const autoRedactCount = computed(
+  () => analysisMatches.value.filter((a) => a.autoRedact).length
+);
+const reviewNeededCount = computed(
+  () => analysisMatches.value.filter((a) => !a.autoRedact).length
+);
+
+function getWordAnalysis(globalIndex: number): SensitiveMatch | undefined {
+  return analysisByWord.value.get(globalIndex);
+}
+
+function piiShortLabel(type: PIIType): string {
+  return PII_CATEGORIES.find((c) => c.type === type)?.label ?? type;
+}
+
+function wordBoxClass(word: SpatialWord & { globalIndex: number }): string {
+  if (isWordRedacted(word.globalIndex, word)) {
+    return 'border-2 border-red-500 bg-red-500/50 z-20 shadow-[0_0_10px_rgba(239,68,68,0.85)] ring-1 ring-red-400/50 cursor-pointer';
+  }
+  const a = getWordAnalysis(word.globalIndex);
+  if (a && !a.autoRedact) {
+    return 'border-2 border-dashed border-amber-400 bg-amber-400/20 z-20';
+  }
+  return props.documentType === 'text-pdf'
+    ? 'border border-transparent hover:border-blue-400/60 hover:bg-blue-400/15 cursor-pointer z-10'
+    : 'border border-emerald-500/25 bg-emerald-500/10 z-10';
+}
+
+function wordBadge(word: SpatialWord & { globalIndex: number }): { text: string; auto: boolean } | null {
+  const a = getWordAnalysis(word.globalIndex);
+  if (!a) return null;
+  return { text: `${piiShortLabel(a.type)} ${Math.round(a.combined * 100)}%`, auto: a.autoRedact };
+}
 
 const activePiiTypes = computed<PIIType[]>(() => {
   const types: PIIType[] = ['nik', 'phone', 'email', 'id', 'bank', 'dob', 'ttl', 'bpjs', 'npwp', 'date'];

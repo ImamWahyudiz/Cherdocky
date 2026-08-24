@@ -43,4 +43,19 @@ Thumbs.db
 # Antigravity / AI IDE artifacts
 .agents
 
-Test
+# --- Test datasets & artifacts (large, local-only) ---
+test/IMG_OCR_IND_CN/
+test/Generated E-ktp/
+test/image_ocr/
+test-results/
+*.traineddata
+test/*.eval.json
+playwright-report/
+
+# Local fixture media at test root (personal documents stay out of the repo)
+test/*.jpg
+test/*.jpeg
+test/*.png
+test/*.pdf
+test/*.webp
+test/eval/result.json

@@ -1,7 +1,7 @@
 import { PDFDocument, rgb, PDFRawStream } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import type { SpatialWord } from './ocrEngine';
-import { detectPII, findContextualPIIWordIndices, type PIIType } from './piiDetector';
+import { findContextualPIIWordIndices, type PIIType } from './piiDetector';
 import type { DocumentType } from '~/composables/useDocumentIngestion';
 import type { DetectedRegion } from './faceDetector';
 
@@ -73,7 +73,7 @@ function applyPixelRedaction(
   const autoIndices = findContextualPIIWordIndices(words, activeTypes, customText);
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
-    if (word.forceRedact || autoIndices.has(i) || detectPII(word.text, activeTypes, customText)) {
+    if (word.forceRedact || autoIndices.has(i)) {
       ctx.fillRect(
         word.x * coordScale,
         word.y * coordScale,
@@ -190,7 +190,7 @@ export async function redactNativePdfText(
 
     for (const { word, index } of pageWordEntries) {
       const isRedacted =
-        word.forceRedact || autoIndices.has(index) || detectPII(word.text, activeTypes, customText);
+        word.forceRedact || autoIndices.has(index);
 
       if (isRedacted) {
         sensitiveStringsToScrub.push(word.text);

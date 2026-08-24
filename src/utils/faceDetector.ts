@@ -38,7 +38,7 @@ async function getDetector(): Promise<any> {
       delegate: 'GPU',
     },
     runningMode: 'IMAGE',
-    minDetectionConfidence: 0.38,
+    minDetectionConfidence: 0.5,
     minSuppressionThreshold: 0.30,
   });
 
@@ -247,11 +247,15 @@ export async function detectFaces(
     tileCanvas.height = 0;
 
     // --- Filter invalid aspect ratios, sizes, and low confidence ---
+    const pageArea = imgW * imgH;
     const filteredBoxes = candidateBoxes.filter((box) => {
-      if (box.w < 10 || box.h < 10) return false;
-      if (box.w > imgW * 0.95 || box.h > imgH * 0.95) return false;
+      if (box.w < 12 || box.h < 12) return false;
+      // Drop whole-document false positives: a real face never covers
+      // most of the page (a KTP photo is typically < 20% of the area).
+      if (box.w > imgW * 0.55 || box.h > imgH * 0.55) return false;
+      if (box.w * box.h > pageArea * 0.35) return false;
       const ar = box.w / box.h;
-      if (ar < 0.45 || ar > 1.9) return false;
+      if (ar < 0.55 || ar > 1.8) return false;
       return true;
     });
 

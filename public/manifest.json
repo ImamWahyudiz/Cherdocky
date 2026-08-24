@@ -1,0 +1,19 @@
+{
+  "name": "Cherdocky - Offline PII Redactor",
+  "short_name": "Cherdocky",
+  "description": "100% Offline-First PII Auto-Redactor & Document Processor",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#1e293b",
+  "theme_color": "#3b82f6",
+  "display_override": ["standalone", "windowed"],
+  "orientation": "portrait-primary",
+  "precomputed_icon": null,
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
