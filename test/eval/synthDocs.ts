@@ -160,6 +160,99 @@ export function article(): SynthDoc {
   return { name: 'article_news', html: shell(body), transcript };
 }
 
+// --- F. Phone app screen (dense UI, small fonts, status/nav chrome) --------
+export function appScreen(): SynthDoc {
+  const rows: [string, string, string][] = [
+    ['GoFood Ayam Geprek', 'Hari ini 19.24', '-Rp32.000'],
+    ['Top Up ShopeePay', 'Kemarin 20.01', '-Rp100.000'],
+    ['Transfer ke Rina Wati', 'Kemarin 18.45', '-Rp250.000'],
+    ['Gopay Driver', '22 Ags 07.12', '-Rp18.000'],
+    ['Cashback Kembali', '21 Ags 23.59', '+Rp5.000'],
+    ['Token Listrik PLN', '21 Ags 06.30', '-Rp50.000'],
+    ['Netflix Premium', '20 Ags 13.00', '-Rp54.000'],
+  ];
+  const row = ([title, sub, amt]: [string, string, string]) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f1f1f1;">
+      <div>
+        <div style="font-size:14px;font-weight:600;">${title}</div>
+        <div style="font-size:11px;color:#80868b;margin-top:2px;">${sub}</div>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:#202124;">${amt}</div>
+    </div>`;
+  const body = `
+  <div style="display:flex;justify-content:space-between;font-size:9px;color:#5f6368;padding-bottom:6px;">
+    <span>09.41</span><span>4G 87%</span>
+  </div>
+  <div style="font-size:16px;font-weight:700;">DompetKu</div>
+  <div style="background:#e8f0fe;border-radius:10px;padding:12px;margin:10px 0;">
+    <div style="font-size:10px;color:#5f6368;">Saldo tersedia</div>
+    <div style="font-size:20px;font-weight:700;">Rp 4.285.500</div>
+    <div style="font-size:11px;color:#5f6368;margin-top:2px;">0812-3456-7890</div>
+  </div>
+  <div style="font-size:11px;color:#5f6368;text-transform:uppercase;margin:6px 0 2px;">Transaksi Terakhir</div>
+  ${rows.map(row).join('')}
+  <div style="display:flex;justify-content:space-between;font-size:11px;color:#5f6368;border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;">
+    <span>Beranda</span><span>Riwayat</span><span>Kartu</span><span>Promo</span><span>Profil</span>
+  </div>`;
+  const transcript = [
+    '09.41 4G 87%',
+    'DompetKu',
+    'Saldo tersedia Rp 4.285.500',
+    '0812-3456-7890',
+    'Transaksi Terakhir',
+    ...rows.map(([t, s, a]) => `${t} ${s} ${a}`),
+    'Beranda Riwayat Kartu Promo Profil',
+  ].join('\n');
+  return { name: 'app_screen', html: shell(body), transcript };
+}
+
+// --- G. Dense bank mutation (more rows, smaller font) ------------------------
+export function denseMutation(): SynthDoc {
+  const rows: [string, string, string][] = [
+    ['25/07', 'QRIS INDOMARET PPOB', 'Rp 45.500'],
+    ['26/07', 'TRANSFER MASUK BCA', 'Rp 2.750.000'],
+    ['27/07', 'BIAYA TARIK TUNAI ATM', 'Rp 6.500'],
+    ['28/07', 'PEMBELIAN TOKOPEDIA', 'Rp 189.000'],
+    ['29/07', 'TAGIHAN KARTU KREDIT', 'Rp 1.200.000'],
+    ['30/07', 'BUNGA DAN PAJAK', 'Rp 8.245'],
+    ['31/07', 'TRANSFER KE DONI PRATAMA', 'Rp 320.000'],
+    ['01/08', 'QRIS ALFAMART EXPRESS', 'Rp 67.900'],
+    ['02/08', 'SETORAN TUNAI BRILINK', 'Rp 900.000'],
+    ['03/08', 'PEMBAYARAN BPJS KESEHATAN', 'Rp 168.000'],
+    ['04/08', 'TOP UP OVO DRIVER', 'Rp 150.000'],
+    ['05/08', 'TRANSFER MASUK MANDIRI', 'Rp 475.000'],
+    ['06/08', 'LANGGANAN SPOTIFY PREMIUM', 'Rp 54.999'],
+    ['07/08', 'PEMBELIAN SHOPEE FOOD', 'Rp 42.750'],
+    ['08/08', 'ADMIN REKENING GIRO', 'Rp 12.500'],
+    ['09/08', 'TRANSFER KE SITI AMINAH', 'Rp 1.050.000'],
+  ];
+  const body = `
+  <div style="font-weight:700;font-size:15px;margin-bottom:2px;">CERDOCKY BANK MUTASI</div>
+  <div style="font-size:10px;color:#5f6368;margin-bottom:6px;">Rekening 9876543210 &middot; Periode 25 Jul - 09 Ags 2026 &middot; Mata uang IDR</div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <tr><th style="text-align:left;padding:3px 3px;border-bottom:1px solid #bbb;">Tgl</th>
+        <th style="text-align:left;padding:3px 3px;border-bottom:1px solid #bbb;">Deskripsi</th>
+        <th style="text-align:right;padding:3px 3px;border-bottom:1px solid #bbb;">Jumlah</th></tr>
+    ${rows
+      .map(
+        ([d, desc, amt]) =>
+          `<tr><td style="padding:2px 3px;white-space:nowrap;">${d}</td>
+           <td style="padding:2px 3px;">${desc}</td>
+           <td style="padding:2px 3px;text-align:right;white-space:nowrap;">${amt}</td></tr>`
+      )
+      .join('')}
+  </table>
+  <div style="font-size:10px;color:#5f6368;margin-top:6px;">Saldo akhir Rp 12.483.662 &middot; Cetak 25/08/2026 10.15 WIB</div>`;
+  const transcript = [
+    'CERDOCKY BANK MUTASI',
+    'Rekening 9876543210 Periode 25 Jul - 09 Ags 2026 Mata uang IDR',
+    'Tgl Deskripsi Jumlah',
+    ...rows.map(([d, desc, amt]) => `${d} ${desc} ${amt}`),
+    'Saldo akhir Rp 12.483.662 Cetak 25/08/2026 10.15 WIB',
+  ].join('\n');
+  return { name: 'mutation_dense', html: shell(body), transcript };
+}
+
 export const SYNTH_DOCS: SynthDoc[] = [
   bankMutation(),
   socialPost(),
@@ -167,4 +260,20 @@ export const SYNTH_DOCS: SynthDoc[] = [
   chatThread('chat_dark', true),
   receipt(),
   article(),
+  appScreen(),
+  denseMutation(),
+];
+
+/**
+ * Degradation twins: real-world inputs are rarely clean renders. Each entry
+ * re-runs one base doc through a distortion applied to the rasterized PNG,
+ * exercising small-text scaling, compression artifacts, and soft focus.
+ */
+export type DegradeMode = 'half' | 'jpeg' | 'blur';
+
+export const DEGRADE_TWINS: { docName: string; mode: DegradeMode }[] = [
+  { docName: 'bank_mutation', mode: 'jpeg' },
+  { docName: 'article_news', mode: 'half' },
+  { docName: 'app_screen', mode: 'half' },
+  { docName: 'chat_dark', mode: 'blur' },
 ];

@@ -28,6 +28,30 @@ import { analyzeWords, type OcrWord } from '../../src/utils/piiDetector';
   }
 };
 
+// Dev-only eval hook: attribution diagnosis — compares RAW tesseract output
+// (own worker, psm 6, no preprocessing/filtering) against the full pipeline
+// result so digit loss can be classified as engine-side vs pipeline-side.
+(window as any).runDiag = async (file: File) => {
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker('ind+eng');
+  await worker.setParameters({ tessedit_pageseg_mode: '6', user_defined_dpi: '150' } as any);
+  let rawText = '';
+  try {
+    const { data } = await worker.recognize(file, {}, { blocks: true });
+    rawText = data.text ?? '';
+  } finally {
+    await worker.terminate();
+  }
+  const words = await processDocument(file);
+  return {
+    rawText,
+    pipelineText: words.map((w) => w.text).join(' '),
+    pipelineDigits: words
+      .filter((w) => /\d/.test(w.text))
+      .map((w) => ({ t: w.text, conf: Math.round(w.confidence) })),
+  };
+};
+
 // Dev-only eval hook: runs the real app OCR + PII pipeline on a file and
 // returns the results so the Playwright eval spec can measure accuracy.
 (window as any).runEval = async (file: File) => {

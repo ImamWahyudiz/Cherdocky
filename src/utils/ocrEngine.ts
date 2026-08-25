@@ -22,6 +22,8 @@ import {
 } from './adaptiveThreshold';
 import { isValidNik } from './piiDetector';
 import { KTP_FIELD_PRIORS, isKtpLike, hasNikCorroboration } from './ktpLayoutPriors';
+import { repairTokens } from './tokenRepair';
+import { sanitizeTokens } from './tokenSanitizer';
 
 export interface SpatialWord {
   text: string;
@@ -30,6 +32,10 @@ export interface SpatialWord {
   width: number;
   height: number;
   confidence: number;
+  /** True when the read fell below the adaptive confidence floor. Extraction-
+   *  first policy keeps the word (missing content is worse than noisy content)
+   *  but flags it so pass scoring and downstream consumers can weigh it down. */
+  lowConf?: boolean;
   forceRedact?: boolean;
   pageIndex?: number;
   isContextual?: boolean;
@@ -52,15 +58,27 @@ export interface OCRProvider {
 let _cachedWorker: Worker | null = null;
 let _workerInitializing: Promise<Worker> | null = null;
 
-async function getWorker(onProgress?: (progress: number) => void): Promise<Worker> {
+// The tesseract logger is bound ONCE at worker creation, but the worker is a
+// singleton shared by every document. Routing events through this mutable sink
+// lets each processDocument call receive recognition progress; the previous
+// closure-capture design left every document after the first with a stale
+// callback, so the UI sat at its initial progress value for minutes.
+let _recognitionProgressSink: ((p: number) => void) | null = null;
+
+async function getWorker(): Promise<Worker> {
   if (_cachedWorker) return _cachedWorker;
 
   if (!_workerInitializing) {
     _workerInitializing = (async () => {
       const worker = await createWorker(['ind', 'eng'], 1, {
         logger: (m) => {
-          if (m.status === 'recognizing text' && onProgress) {
-            onProgress(m.progress);
+          if (_recognitionProgressSink) {
+            // Coarse init/download stages creep forward so a cold start on a
+            // slow connection never reads as frozen at 0.
+            if (m.status === 'loading tesseract core') _recognitionProgressSink(0.01);
+            else if (m.status === 'initializing tesseract') _recognitionProgressSink(0.02);
+            else if (m.status === 'loading language traineddata') _recognitionProgressSink(0.03);
+            else if (m.status === 'recognizing text') _recognitionProgressSink(m.progress);
           }
         },
       });
@@ -139,6 +157,10 @@ function buildParams(config: TesseractConfig, docType: DocumentType): Record<str
   const params: Record<string, string> = {
     tessedit_pageseg_mode: String(config.psm),
     preserve_interword_spaces: '1',
+    // Screenshots and canvas renders carry no DPI metadata; without a hint
+    // Tesseract assumes 70 DPI and treats small glyphs as noise. A fixed
+    // mid-range value makes character-size heuristics behave like print.
+    user_defined_dpi: '150',
     // ALWAYS emit both charsets explicitly: setParameters MERGES into the
     // worker's persistent state, so omitting a key silently keeps whatever
     // the previous pass left there (e.g. a digit-only rescan whitelist
@@ -165,7 +187,8 @@ function flattenWords(raw: any): { text: string; bbox: any; confidence: number }
 
 function filterWords(
   rawWords: { text: string; bbox: any; confidence: number }[],
-  thresholds: ConfidenceThresholds
+  thresholds: ConfidenceThresholds,
+  keepLowConf: boolean
 ): SpatialWord[] {
   const out: SpatialWord[] = [];
   for (const word of rawWords) {
@@ -184,10 +207,23 @@ function filterWords(
 
     // Mixed tokens (digits+letters like "32?750bb005?40014") bypass the
     // confidence threshold so reScanNumericWords can clean them up.
+    // Extraction-first: on generic documents sub-threshold words are KEPT but
+    // flagged lowConf — silently dropping them loses whole real words.
+    // Card types (KTP/ID) keep the strict drop: their layout-prior matching
+    // degrades measurably when noise tokens sit between anchor fields.
     const isMixedNumeric = /\d/.test(text) && /[A-Za-z]/.test(text);
-    if (!isMixedNumeric && !passesThreshold(text, conf, thresholds)) continue;
+    const failsThreshold = !isMixedNumeric && !passesThreshold(text, conf, thresholds);
+    if (failsThreshold && !keepLowConf) continue;
 
-    out.push({ text, x: word.bbox.x0, y: word.bbox.y0, width: w, height: h, confidence: conf });
+    out.push({
+      text,
+      x: word.bbox.x0,
+      y: word.bbox.y0,
+      width: w,
+      height: h,
+      confidence: conf,
+      ...(failsThreshold ? { lowConf: true } : {}),
+    });
   }
   return out;
 }
@@ -197,7 +233,8 @@ async function recognizeToWords(
   image: Blob,
   config: TesseractConfig,
   docType: DocumentType,
-  quality: ImageQuality
+  quality: ImageQuality,
+  onPassProgress?: (passIndex: number, totalPasses: number, tessProgress: number) => void
 ): Promise<SpatialWord[]> {
   // Try primary PSM, then fallbacks — pick the pass that yields the most words
   // (a multi-field card on psm:8 returns nothing; fallback to psm:6/3 finds all).
@@ -218,17 +255,36 @@ async function recognizeToWords(
   // 2. Otherwise the highest solid score wins. Raw word count alone favors
   //    sparse-text fragmentation, so scoring counts only alnum-heavy words.
   const DIGIT_PASS_FLOOR = 0.85;
+  // Extraction-first: on generic documents every PSM pass keeps the words it
+  // uniquely saw (geometrically deduped) instead of winner-takes-all — sparse
+  // and block segmentations are complementary, not rivals. Card types keep
+  // best-pass selection; their gates are tuned around it.
+  const unionPasses = docType !== DocumentType.KTP_PHOTO && docType !== DocumentType.ID_CARD;
+  const passResults: SpatialWord[][] = [];
   let best: SpatialWord[] = [];
   let bestScore = -1;
   let bestSolidOverall = -1;
   let digitPass: { words: SpatialWord[]; score: number } | null = null;
   for (const psm of psms) {
     await worker.setParameters({ ...buildParams(config, docType), tessedit_pageseg_mode: String(psm) } as any);
+    const passIndex = psms.indexOf(psm);
+    if (onPassProgress) {
+      _recognitionProgressSink = (p) => onPassProgress(passIndex, psms.length, p);
+    }
     const { data } = await worker.recognize(image, {}, { blocks: true });
+    _recognitionProgressSink = null;
     const rawWords = flattenWords(data);
     const thresholds = getConfidenceThresholds(quality, docType);
-    const words = filterWords(rawWords, thresholds);
+    const words = filterWords(
+      rawWords,
+      thresholds,
+      docType !== DocumentType.KTP_PHOTO && docType !== DocumentType.ID_CARD
+    );
+    passResults.push(words);
+    // Pass selection must not reward noisy segmentations: low-confidence
+    // padding inflates word counts without adding reliable content.
     const score = words.reduce((s, w) => {
+      if (w.lowConf) return s;
       const t = w.text.replace(/[^0-9A-Za-z]/g, '');
       return s + (t.length >= 3 || /^\d{4,}$/.test(w.text) ? 1 : 0);
     }, 0);
@@ -243,6 +299,7 @@ async function recognizeToWords(
       best = words;
     }
   }
+  if (unionPasses) return dedupeWordUnion(passResults);
   if (
     digitPass &&
     digitPass.score >= DIGIT_PASS_FLOOR * Math.max(1, bestSolidOverall) &&
@@ -252,6 +309,42 @@ async function recognizeToWords(
     best = digitPass.words;
   }
   return best;
+}
+
+/**
+ * Union of words across PSM passes with geometric dedup: two boxes merge when
+ * they overlap strongly AND read the same text (the higher-confidence or
+ * non-flagged variant wins). Disagreements are kept — for extraction, seeing
+ * two competing reads beats losing one silently.
+ */
+function dedupeWordUnion(passes: SpatialWord[][]): SpatialWord[] {
+  const all = passes.flat();
+  const kept: SpatialWord[] = [];
+  for (const w of all) {
+    const cy = w.y + w.height / 2;
+    const dupIdx = kept.findIndex((k) => {
+      const kcy = k.y + k.height / 2;
+      if (Math.abs(kcy - cy) > Math.max(k.height, w.height) * 0.6) return false;
+      const ix = Math.max(0, Math.min(k.x + k.width, w.x + w.width) - Math.max(k.x, w.x));
+      const iy = Math.max(0, Math.min(k.y + k.height, w.y + w.height) - Math.max(k.y, w.y));
+      const inter = ix * iy;
+      const smaller = Math.min(k.width * k.height, w.width * w.height);
+      if (smaller <= 0 || inter / smaller < 0.55) return false;
+      const a = w.text.replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+      const b = k.text.replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+      return a === b && a.length > 0;
+    });
+    if (dupIdx === -1) {
+      kept.push(w);
+    } else {
+      const k = kept[dupIdx];
+      const better =
+        (!!k.lowConf && !w.lowConf) ||
+        (k.lowConf === w.lowConf && w.confidence > k.confidence);
+      if (better) kept[dupIdx] = w;
+    }
+  }
+  return kept;
 }
 
 const DIGIT_ONLY_WHITELIST = '0123456789-+() ';
@@ -267,7 +360,8 @@ async function reScanNumericWords(
   imageBlob: Blob,
   words: SpatialWord[],
   config: TesseractConfig,
-  docType: DocumentType
+  docType: DocumentType,
+  onCandidateProgress?: (done: number, total: number, tessProgress: number) => void
 ): Promise<SpatialWord[]> {
   const numericCandidates = words.filter((w) => {
     const t = w.text.trim();
@@ -286,10 +380,15 @@ async function reScanNumericWords(
   // document's recognition.
   const baseParams = buildParams(config, docType);
   try {
-    for (const w of numericCandidates) {
+    for (let ci = 0; ci < numericCandidates.length; ci++) {
+      const w = numericCandidates[ci];
       const crop = await cropImageSource(imageBlob, { x: w.x, y: w.y, w: w.width, h: w.height });
       await worker.setParameters({ tessedit_char_whitelist: DIGIT_ONLY_WHITELIST } as any);
+      if (onCandidateProgress) {
+        _recognitionProgressSink = (p) => onCandidateProgress(ci, numericCandidates.length, p);
+      }
       const { data } = await worker.recognize(crop, {}, { blocks: true });
+      _recognitionProgressSink = null;
       const raw = flattenWords(data);
       const cleaned = raw
         .map((r) =>
@@ -547,14 +646,18 @@ async function runOcrPipeline(
   source: ImageData,
   docType: DocumentType,
   targetW: number,
-  targetH: number
+  targetH: number,
+  onProgress?: (p: number) => void
 ): Promise<SpatialWord[]> {
   const config = getTesseractConfig(docType);
 
   let working = source;
 
   // --- Safety: downscale only pathologically large inputs to protect memory ---
-  const MAX_DIM = 2600;
+  // 2600 was tuned when every pixel cost more; modern phone photos (4000px+)
+  // were being crushed below the LSTM's usable glyph size before any variant
+  // could rescue them. 3200 keeps the memory ceiling while preserving text.
+  const MAX_DIM = 3200;
   if (Math.max(working.width, working.height) > MAX_DIM) {
     const f = MAX_DIM / Math.max(working.width, working.height);
     working = resizeImageData(
@@ -587,13 +690,15 @@ async function runOcrPipeline(
   const preScale = targetW / deskewW;
 
   // --- Geometric: upscale very small images, but leave medium/large alone ---
-  // Upscale only genuinely tiny crops (< 1200 px long edge). Larger images
-  // (e.g. 1200x628) already have enough pixels; upscaling them just blurs.
+  // Upscale genuinely tiny inputs (< 1200 px long edge) hard: Tesseract's LSTM
+  // wants glyphs around 30 px, and downscaled screenshots/WhatsApp forwards
+  // land well below that. A 3x cap measured better recall on half-scale
+  // renders than the old 2x ceiling without hurting any other slice.
   let upscaleFactor = 1;
   const longEdge = Math.max(working.width, working.height);
   let preUpscaleData: ImageData | null = null;
   if (longEdge < 1200) {
-    upscaleFactor = Math.min(2400 / longEdge, 2);
+    upscaleFactor = Math.min(3000 / longEdge, 3);
     preUpscaleData = working;
     working = resizeImageData(
       working,
@@ -616,6 +721,8 @@ async function runOcrPipeline(
   if (q2.noise > 0.3 && (isCardDoc || q2.score < 0.55)) working = applyMedianFilter(working);
   if (q2.contrast < 0.25) working = applyUnsharpMask(working, 0.3);
   if (q2.score < 0.4 && upscaleFactor <= 1.2) working = applyThreshold(working, 'sauvola');
+  // Preprocessing chain done; recognition dominates the remaining time.
+  onProgress?.(0.08);
 
   const processedBlob = await imageDataToBlob(working);
 
@@ -647,10 +754,26 @@ async function runOcrPipeline(
 
   let bestWords: SpatialWord[] = [];
   let bestFactor = upscaleFactor;
-  for (const v of variants) {
+
+  // Allocate the recognition sweep (0.10–0.80 of pipeline progress) across
+  // variants proportionally to their PSM pass counts, so the bar moves at a
+  // steady rate regardless of how many variants are active.
+  const SWEEP_START = 0.1;
+  const SWEEP_END = 0.8;
+  const passesPerVariant = variants.map(() => countPsmPasses(config, docType));
+  const totalSweepPasses = passesPerVariant.reduce((a, b) => a + b, 0);
+  let sweepCursor = SWEEP_START;
+
+  for (let vi = 0; vi < variants.length; vi++) {
+    const v = variants[vi];
     const blob = await imageDataToBlob(v.data);
     const qv = assessQuality(v.data);
-    const w = await recognizeToWords(worker, blob, config, docType, qv);
+    const slotSpan = (passesPerVariant[vi] / totalSweepPasses) * (SWEEP_END - SWEEP_START);
+    const slotStart = sweepCursor;
+    sweepCursor += slotSpan;
+    const w = await recognizeToWords(worker, blob, config, docType, qv, (passIdx, totalPasses, tessP) => {
+      onProgress?.(slotStart + ((passIdx + tessP) / totalPasses) * slotSpan);
+    });
     if (w.length > bestWords.length) {
       bestWords = w;
       bestFactor = v.factor;
@@ -658,10 +781,33 @@ async function runOcrPipeline(
   }
 
   let words = bestWords;
-  words = await reScanNumericWords(worker, processedBlob, words, config, docType);
+  const RESCAN_START = SWEEP_END;
+  const RESCAN_END = 0.92;
+  words = await reScanNumericWords(
+    worker,
+    processedBlob,
+    words,
+    config,
+    docType,
+    (done, total, tessP) => onProgress?.(RESCAN_START + ((done + tessP) / Math.max(1, total)) * (RESCAN_END - RESCAN_START))
+  );
+  onProgress?.(0.94);
   words = await recoverNikFromLayout(worker, processedBlob, words, config, docType);
+  onProgress?.(0.97);
+
+  // Token repair (stitch + majority rules) — generic documents only. Cards
+  // keep verbatim reads: their layout matching and gates are tuned around
+  // exactly what the engine emitted.
+  const isCardDocType = docType === DocumentType.KTP_PHOTO || docType === DocumentType.ID_CARD;
+  if (!isCardDocType) {
+    words = repairTokens(sanitizeTokens(words));
+  }
 
   return words.map((w) => mapBoxBack(w, bestFactor, deskewW, deskewH, preScale, skewAngle, targetW, targetH));
+}
+
+function countPsmPasses(config: TesseractConfig, docType: DocumentType): number {
+  return new Set([config.psm, ...getFallbackPSMs(docType)]).size;
 }
 
 // ---------------------------------------------------------------------------
@@ -673,33 +819,33 @@ class TesseractOCRProvider implements OCRProvider {
     file: Blob | File,
     onProgress?: (progress: number) => void
   ): Promise<SpatialWord[]> {
-  try {
-    const worker = await getWorker(onProgress);
-    if (onProgress) onProgress(0.05);
+    try {
+      const worker = await getWorker();
+      if (onProgress) onProgress(0.05);
 
-    const original = await blobToImageData(file);
-    let docType = preClassifyFromDimensions(original.width, original.height).type;
-    // Aspect-ratio guesses mislabel UI screenshots as ID cards / face photos.
-    // A dominant flat background is a reliable screenshot signature (measured
-    // gap: UI captures >= 0.66 vs photos <= 0.28) — route those to the generic
-    // profile so card-specific whitelists never touch screen text.
-    if (docType !== DocumentType.UNKNOWN && isUiScreenshot(original)) {
-      docType = DocumentType.UNKNOWN;
-    }
+      const original = await blobToImageData(file);
+      let docType = preClassifyFromDimensions(original.width, original.height).type;
+      // Aspect-ratio guesses mislabel UI screenshots as ID cards / face photos.
+      // A dominant flat background is a reliable screenshot signature (measured
+      // gap: UI captures >= 0.66 vs photos <= 0.28) — route those to the generic
+      // profile so card-specific whitelists never touch screen text.
+      if (docType !== DocumentType.UNKNOWN && isUiScreenshot(original)) {
+        docType = DocumentType.UNKNOWN;
+      }
 
-    const words = await runOcrPipeline(
-      worker,
-      original,
-      docType,
-      original.width,
-      original.height
-    );
+      const words = await runOcrPipeline(
+        worker,
+        original,
+        docType,
+        original.width,
+        original.height,
+        (p) => onProgress?.(0.05 + p * 0.93)
+      );
 
       if (onProgress) onProgress(1);
       return words;
-    } catch (err) {
-      console.error('Tesseract OCR error:', err);
-      return [];
+    } finally {
+      _recognitionProgressSink = null;
     }
   }
 

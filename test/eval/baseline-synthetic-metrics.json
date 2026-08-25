@@ -1,46 +1,148 @@
 {
-  "images": 6,
+  "images": 12,
   "docs": {
     "bank_mutation": {
-      "wordRecall": 0.9722222222222222,
-      "wordPrecision": 0.9722222222222222,
-      "digitRecall": 1,
-      "detectedWords": 72
+      "wordRecall": 0.9861111111111112,
+      "repairedRecall": 0.9861111111111112,
+      "wordPrecision": 0.9594594594594594,
+      "digitRecall": 0.9534883720930233,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 72,
+      "detectedWords": 74
     },
     "social_post": {
-      "wordRecall": 0.9761904761904762,
+      "wordRecall": 1,
+      "repairedRecall": 1,
       "wordPrecision": 1,
       "digitRecall": 1,
-      "detectedWords": 41
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 42,
+      "detectedWords": 42
     },
     "chat_light": {
-      "wordRecall": 0.8409090909090909,
-      "wordPrecision": 0.9487179487179487,
-      "digitRecall": 0.07692307692307693,
-      "detectedWords": 39
+      "wordRecall": 0.8636363636363636,
+      "repairedRecall": 0.8636363636363636,
+      "wordPrecision": 0.9047619047619048,
+      "digitRecall": 0.15384615384615385,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 44,
+      "detectedWords": 42
     },
     "chat_dark": {
-      "wordRecall": 0.8863636363636364,
-      "wordPrecision": 0.9512195121951219,
-      "digitRecall": 0.3076923076923077,
-      "detectedWords": 41
+      "wordRecall": 0.9318181818181818,
+      "repairedRecall": 0.9318181818181818,
+      "wordPrecision": 0.8541666666666666,
+      "digitRecall": 0.6923076923076923,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 44,
+      "detectedWords": 48
     },
     "receipt": {
-      "wordRecall": 1,
-      "wordPrecision": 1,
+      "wordRecall": 0.9787234042553191,
+      "repairedRecall": 0.9787234042553191,
+      "wordPrecision": 0.9787234042553191,
       "digitRecall": 1,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 47,
       "detectedWords": 47
     },
     "article_news": {
       "wordRecall": 1,
-      "wordPrecision": 1,
+      "repairedRecall": 1,
+      "wordPrecision": 0.9805825242718447,
       "digitRecall": 1,
-      "detectedWords": 101
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 101,
+      "detectedWords": 103
+    },
+    "app_screen": {
+      "wordRecall": 0.8524590163934426,
+      "repairedRecall": 0.8852459016393442,
+      "wordPrecision": 0.8548387096774194,
+      "digitRecall": 0.6153846153846154,
+      "splits": 0,
+      "merges": 1,
+      "partials": 0,
+      "gtWords": 61,
+      "detectedWords": 62
+    },
+    "mutation_dense": {
+      "wordRecall": 1,
+      "repairedRecall": 1,
+      "wordPrecision": 0.9763779527559056,
+      "digitRecall": 1,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 124,
+      "detectedWords": 127
+    },
+    "bank_mutation@jpeg": {
+      "degrade": "jpeg",
+      "wordRecall": 0.9861111111111112,
+      "repairedRecall": 0.9861111111111112,
+      "wordPrecision": 0.9594594594594594,
+      "digitRecall": 0.9767441860465116,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 72,
+      "detectedWords": 74
+    },
+    "article_news@half": {
+      "degrade": "half",
+      "wordRecall": 0.8316831683168316,
+      "repairedRecall": 0.8316831683168316,
+      "wordPrecision": 0.8076923076923077,
+      "digitRecall": 1,
+      "splits": 0,
+      "merges": 0,
+      "partials": 3,
+      "gtWords": 101,
+      "detectedWords": 104
+    },
+    "app_screen@half": {
+      "degrade": "half",
+      "wordRecall": 0.4918032786885246,
+      "repairedRecall": 0.4918032786885246,
+      "wordPrecision": 0.4,
+      "digitRecall": 0.20512820512820512,
+      "splits": 0,
+      "merges": 0,
+      "partials": 1,
+      "gtWords": 61,
+      "detectedWords": 75
+    },
+    "chat_dark@blur": {
+      "degrade": "blur",
+      "wordRecall": 0.9318181818181818,
+      "repairedRecall": 0.9318181818181818,
+      "wordPrecision": 0.9111111111111111,
+      "digitRecall": 0.5384615384615384,
+      "splits": 0,
+      "merges": 0,
+      "partials": 0,
+      "gtWords": 44,
+      "detectedWords": 45
     }
   },
   "aggregate": {
-    "wordRecall": 0.945947570947571,
-    "wordPrecision": 0.9786932805225489,
-    "digitRecall": 0.7307692307692308
+    "wordRecall": 0.904513651429089,
+    "wordPrecision": 0.8822644583426166,
+    "digitRecall": 0.7612800636056449,
+    "repairedRecall": 0.9072458918662475,
+    "fragRate": 0
   }
 }

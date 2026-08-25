@@ -20,6 +20,18 @@ function fail(msg) {
   process.exit(1);
 }
 
+// Every section reports its own failures; the hard exit happens once at the
+// end so a regression in an early section can't blind the later ones.
+const deferred = [];
+function deferSection(name, count) {
+  if (count > 0) {
+    deferred.push(`${name}: ${count} regression(s)`);
+    console.log(`[!!] ${name} gate FAILED`);
+  } else {
+    console.log(`[ok] ${name} gate passed`);
+  }
+}
+
 if (!fs.existsSync(BASELINE)) fail(`baseline metrics missing: ${BASELINE}`);
 if (!fs.existsSync(CURRENT)) {
   console.log('[gate] no current metrics — run `npm run eval:ktp` first. Gate skipped (soft).');
@@ -65,8 +77,7 @@ console.log(
     `(${dFalse >= 0 ? '+' : ''}${(dFalse * 100).toFixed(1)}pts)${falseBad ? '  << REGRESSION' : ''}`,
 );
 
-if (failures > 0) fail(`${failures} metric regression(s) exceed tolerance`);
-console.log('\n[ok] KTP gate passed');
+deferSection('KTP', failures);
 
 // --- Synthetic multi-doc gate -------------------------------------------
 // Deterministic rendered documents (bank mutation, chats, receipt, …)
@@ -79,7 +90,7 @@ if (!fs.existsSync(SYNTH_BASELINE) || !fs.existsSync(SYNTH_CURRENT)) {
 
   console.log('\n=== Synthetic extraction gate ===');
   let synthFailures = 0;
-  for (const key of ['wordRecall', 'wordPrecision', 'digitRecall']) {
+  for (const key of ['wordRecall', 'wordPrecision', 'digitRecall', 'repairedRecall']) {
     const b = sb.aggregate?.[key];
     const c = sc.aggregate?.[key];
     if (typeof b !== 'number' || typeof c !== 'number') continue;
@@ -91,8 +102,21 @@ if (!fs.existsSync(SYNTH_BASELINE) || !fs.existsSync(SYNTH_CURRENT)) {
         `(${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pts)${bad ? '  << REGRESSION' : ''}`,
     );
   }
-  if (synthFailures > 0) fail(`${synthFailures} synthetic regression(s) exceed tolerance`);
-  console.log('[ok] Synthetic gate passed');
+  // Fragmentation cap: fraction of GT words arriving split across fragments.
+  // Absolute floor 5% or baseline+3pts, whichever is larger — fragmentation
+  // directly measures the "one word read as two" failure mode.
+  const fb2 = sb.aggregate?.fragRate ?? null;
+  const fc2 = sc.aggregate?.fragRate ?? null;
+  if (typeof fb2 === 'number' && typeof fc2 === 'number') {
+    const cap = Math.max(0.05, fb2 + 0.03);
+    const bad = fc2 > cap;
+    if (bad) synthFailures++;
+    console.log(
+      `  ${'fragRate'.padEnd(14)} ${(fb2 * 100).toFixed(1).padStart(5)}% -> ${(fc2 * 100).toFixed(1).padStart(5)}%  ` +
+        `(cap ${(cap * 100).toFixed(1)}%)${bad ? '  << REGRESSION' : ''}`,
+    );
+  }
+  deferSection('Synthetic', synthFailures);
 }
 
 // --- Face detection gate --------------------------------------------------
@@ -145,8 +169,8 @@ if (!fs.existsSync(FACE_BASELINE) || !fs.existsSync(FACE_CURRENT)) {
     `  [info] friends(real): detRate=${friendsRate.toFixed(0)}% avgDets=${(fc.friends.detections / Math.max(1, fc.friends.images)).toFixed(1)} idDocOverdetect=${((fc.idDocOverdetectRate ?? 0) * 100).toFixed(0)}%`,
   );
 
-  if (faceFailures > 0) fail(`${faceFailures} face regression(s) exceed tolerance`);
-  console.log('[ok] Face gate passed');
+  deferSection('Face', faceFailures);
 }
 
+if (deferred.length > 0) fail(deferred.join(' | '));
 console.log('\n[ok] GATE PASSED\n');
