@@ -5,7 +5,9 @@
  * 1. Global Pass: Scans the full document/image.
  * 2. 2x2 Tiled Pass: Scans 4 overlapping quadrants for dense multi-photo grids.
  * 3. 3x3 Tiled Pass: Scans 9 overlapping tiles for high-density grids (e.g. 12-15 photo sheets).
- * 4. First-Come / High-Confidence Deduplication:
+ * 4. 4x4 Tiled Pass: Scans 16 fine tiles — small faces in very dense sheets
+ *    only reach the confidence floor at this effective resolution.
+ * 5. First-Come / High-Confidence Deduplication:
  *    Keeps the best-fitted primary face box and drops duplicate selections that overlap
  *    with an already detected face.
  */
@@ -244,12 +246,19 @@ export async function detectFaces(
     const tileCanvas = document.createElement('canvas');
     const tileCtx = tileCanvas.getContext('2d');
 
-    // --- Pass 2: 2x2 Tiled Scan (4 tiles with 25% overlap) ---
-    if (tileCtx && imgW >= 200 && imgH >= 200) {
-      const numRows = 2;
-      const numCols = 2;
+    // BlazeFace resizes its input to 128px, so each additional tiling level
+    // raises the effective resolution per face. Dense ID-photo grids need the
+    // finer levels: measured on a 900x600 5x3 sheet, three of fifteen faces
+    // never reach the confidence floor in global/2x2/3x3 scans yet score
+    // 0.75-0.83 in 4x4 tiles (probe: zz-probe-grid.spec.ts).
+    const tiledScan = (
+      numRows: number,
+      numCols: number,
+      minDim: number,
+      fallbackScore: number
+    ) => {
+      if (!tileCtx || imgW < minDim || imgH < minDim) return;
       const overlap = 0.25;
-
       const tileW = Math.ceil((imgW / numCols) * (1 + overlap));
       const tileH = Math.ceil((imgH / numRows) * (1 + overlap));
       const stepX = (imgW - tileW) / (numCols - 1 || 1);
@@ -269,42 +278,21 @@ export async function detectFaces(
           try {
             const tileRes = detector.detect(tileCanvas);
             for (const d of tileRes?.detections ?? []) {
-              candidateBoxes.push(extractCandidate(d, offsetX, offsetY, tileW, tileH, 0.55));
+              candidateBoxes.push(extractCandidate(d, offsetX, offsetY, tileW, tileH, fallbackScore));
             }
           } catch (_) {}
         }
       }
-    }
+    };
 
-    // --- Pass 3: 3x3 Tiled Scan (9 tiles with 25% overlap) for dense grids ---
-    if (tileCtx && imgW >= 400 && imgH >= 400) {
-      const numRows3 = 3;
-      const numCols3 = 3;
-      const tileW3 = Math.ceil((imgW / numCols3) * 1.25);
-      const tileH3 = Math.ceil((imgH / numRows3) * 1.25);
-      const stepX3 = (imgW - tileW3) / (numCols3 - 1);
-      const stepY3 = (imgH - tileH3) / (numRows3 - 1);
+    // --- Pass 2: 2x2 Tiled Scan ---
+    tiledScan(2, 2, 200, 0.55);
 
-      tileCanvas.width = tileW3;
-      tileCanvas.height = tileH3;
+    // --- Pass 3: 3x3 Tiled Scan for dense grids ---
+    tiledScan(3, 3, 400, 0.5);
 
-      for (let r = 0; r < numRows3; r++) {
-        for (let c = 0; c < numCols3; c++) {
-          const offsetX = Math.round(c * stepX3);
-          const offsetY = Math.round(r * stepY3);
-
-          tileCtx.clearRect(0, 0, tileW3, tileH3);
-          tileCtx.drawImage(imageSource, offsetX, offsetY, tileW3, tileH3, 0, 0, tileW3, tileH3);
-
-          try {
-            const tileRes = detector.detect(tileCanvas);
-            for (const d of tileRes?.detections ?? []) {
-              candidateBoxes.push(extractCandidate(d, offsetX, offsetY, tileW3, tileH3, 0.5));
-            }
-          } catch (_) {}
-        }
-      }
-    }
+    // --- Pass 4: 4x4 Tiled Scan for very dense photo sheets ---
+    tiledScan(4, 4, 400, 0.5);
 
     // Clean up canvas
     tileCanvas.width = 0;

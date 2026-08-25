@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { SpatialWord } from './ocrEngine';
+import { mergePdfItemsIntoLines, type RawTextItem } from './pdfLineMerge';
 
 // Configure offline worker bundled by Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -69,11 +70,15 @@ function getAccurateCharWidths(
   return new Array(len).fill(avg);
 }
 
+// ---------------------------------------------------------------------------
+// Line reconstruction: pdf.js emits glyph-run fragments (e.g. "ja" + "lan"),
+// so raw items must be re-joined into whole words before tokenization.
+// ---------------------------------------------------------------------------
+
 /**
  * Inspects a PDF file to detect text layer density and presence of scanned images.
  */
-export async function inspectPdfContent(file: File): Promise<PdfInspectionResult> {
-  const arrayBuffer = await file.arrayBuffer();
+export async function inspectPdfContent(file: File): Promise<PdfInspectionResult> {  const arrayBuffer = await file.arrayBuffer();
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   const pdf = await loadingTask.promise;
   const totalPages = pdf.numPages;
@@ -159,76 +164,88 @@ export async function extractAllPdfText(
 
     const textContent = await page.getTextContent();
 
+    // 1. Collect raw items in viewport space (baseline anchor + box metrics)
+    const rawItems: RawTextItem[] = [];
     for (const item of textContent.items) {
-      if ('str' in item && typeof item.str === 'string') {
-        const rawStr = item.str;
-        if (!rawStr.trim()) continue;
+      if (!('str' in item) || typeof item.str !== 'string') continue;
+      const rawStr = item.str;
+      if (!rawStr.trim()) continue;
 
-        const [scaleX, skewY, , , tx, ty] = item.transform;
-        const fontSize = Math.hypot(scaleX, skewY) * PDF_CANVAS_SCALE;
-        const fontHeight = Math.max(item.height * PDF_CANVAS_SCALE, fontSize, 10);
-        const itemWidth = item.width * PDF_CANVAS_SCALE;
+      const [scaleX, skewY, , , tx, ty] = item.transform;
+      const fontSize = Math.hypot(scaleX, skewY) * PDF_CANVAS_SCALE;
+      const fontHeight = Math.max(item.height * PDF_CANVAS_SCALE, fontSize, 10);
+      const [vx, vy] = viewport.convertToViewportPoint(tx, ty);
 
-        // Convert base anchor point (baseline) to viewport pixels
-        const [vx, vy] = viewport.convertToViewportPoint(tx, ty);
+      rawItems.push({
+        str: rawStr,
+        x: vx,
+        baselineY: vy,
+        width: item.width * PDF_CANVAS_SCALE,
+        fontHeight,
+      });
+    }
 
-        // Accurate typography bounds:
-        // Baseline sits at `vy`.
-        // Ascender / Cap-height is approx 0.80 of font height.
-        // Descender is approx 0.20 of font height.
-        const topY = vy - fontHeight * 0.82;
-        const totalHeight = fontHeight * 1.08;
+    // 2. Rebuild visual lines — pdf.js splits words across kerned glyph runs,
+    // so unmerged items surface as fragments like "lan" instead of "jalan".
+    const lines = mergePdfItemsIntoLines(rawItems);
 
-        // Proportional character metrics for the current font
-        const charWidths = getAccurateCharWidths(rawStr, itemWidth, (item as any).fontName, fontSize);
+    // 3. Tokenize each merged line into words with proportional char metrics
+    for (const line of lines) {
+      // Baseline sits at `line.baselineY`.
+      // Ascender / Cap-height is approx 0.80 of font height.
+      // Descender is approx 0.20 of font height.
+      const topY = line.baselineY - line.fontHeight * 0.82;
+      const totalHeight = line.fontHeight * 1.08;
 
-        // Split text item into individual tokens (preserving delimiters and whitespace offsets)
-        const tokens = rawStr.split(/(\s+)/);
-        let charIndex = 0;
+      // Proportional character metrics for the merged run (width includes
+      // inter-fragment gaps so characters map back proportionally).
+      const charWidths = getAccurateCharWidths(line.str, line.width, 'sans-serif', line.fontHeight);
 
-        for (const token of tokens) {
-          const trimmed = token.trim();
-          const tokenLen = token.length;
+      const tokens = line.str.split(/(\s+)/);
+      let charIndex = 0;
 
-          if (trimmed.length > 0) {
-            const leadingSpaces = token.indexOf(trimmed);
-            const wordStartChar = charIndex + leadingSpaces;
-            const wordEndChar = wordStartChar + trimmed.length;
+      for (const token of tokens) {
+        const trimmed = token.trim();
+        const tokenLen = token.length;
 
-            // Compute exact word start X position by summing preceding character widths
-            let wordStartX = vx;
-            for (let c = 0; c < wordStartChar; c++) {
-              wordStartX += charWidths[c] || 0;
-            }
+        if (trimmed.length > 0) {
+          const leadingSpaces = token.indexOf(trimmed);
+          const wordStartChar = charIndex + leadingSpaces;
+          const wordEndChar = wordStartChar + trimmed.length;
 
-            // Compute exact word width by summing constituent character widths
-            let wordWidth = 0;
-            for (let c = wordStartChar; c < wordEndChar; c++) {
-              wordWidth += charWidths[c] || 0;
-            }
-
-            // Ignore isolated noise punctuation like purely '-', '_', '~', '—', '|'
-            const isPurePunctuation = /^[-_~—|•*#:=;,.\\/]+$/.test(trimmed);
-            if (!isPurePunctuation) {
-              // Add a slight 1.5px horizontal and 1px vertical safety margin
-              // so the blocker box cleanly covers all glyph edges without cutting off serifs or letters
-              const padX = 1.5;
-              const padY = 1.0;
-
-              spatialWords.push({
-                text: trimmed,
-                x: Math.round(wordStartX - padX),
-                y: Math.max(0, Math.round(topY - padY)),
-                width: Math.round(wordWidth + padX * 2),
-                height: Math.round(totalHeight + padY * 2),
-                confidence: 100,
-                pageIndex: i,
-              });
-            }
+          // Compute exact word start X position by summing preceding character widths
+          let wordStartX = line.x;
+          for (let c = 0; c < wordStartChar; c++) {
+            wordStartX += charWidths[c] || 0;
           }
 
-          charIndex += tokenLen;
+          // Compute exact word width by summing constituent character widths
+          let wordWidth = 0;
+          for (let c = wordStartChar; c < wordEndChar; c++) {
+            wordWidth += charWidths[c] || 0;
+          }
+
+          // Ignore isolated noise punctuation like purely '-', '_', '~', '—', '|'
+          const isPurePunctuation = /^[-_~—|•*#:=;,.\\/]+$/.test(trimmed);
+          if (!isPurePunctuation) {
+            // Add a slight 1.5px horizontal and 1px vertical safety margin
+            // so the blocker box cleanly covers all glyph edges without cutting off serifs or letters
+            const padX = 1.5;
+            const padY = 1.0;
+
+            spatialWords.push({
+              text: trimmed,
+              x: Math.round(wordStartX - padX),
+              y: Math.max(0, Math.round(topY - padY)),
+              width: Math.round(wordWidth + padX * 2),
+              height: Math.round(totalHeight + padY * 2),
+              confidence: 100,
+              pageIndex: i,
+            });
+          }
         }
+
+        charIndex += tokenLen;
       }
     }
   }

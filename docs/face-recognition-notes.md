@@ -45,5 +45,7 @@ Cherdocky currently **detects** faces (BlazeFace via MediaPipe) and redacts them
 
 See [benchmarks.md](./benchmarks.md) for the full table. Headlines:
 - Rotations ±15°/±30°: 100% detection — no rotation compensation needed
-- Dense grids (12–15 faces): 95% coverage
+- Dense grids (12–15 faces): 100% coverage (a 4×4 tiled pass was added after a
+  probe showed three small faces in a 900×600 sheet only reach the confidence
+  floor at that effective resolution)
 - Textured-scene false positives: eliminated via confidence threshold 0.6 (FPs scored 0.51–0.54; all real faces ≥ 0.84)

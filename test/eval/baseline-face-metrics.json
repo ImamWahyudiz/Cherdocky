@@ -15,8 +15,8 @@
     {
       "name": "15-face-photo1.jpg",
       "expected": 15,
-      "detected": 12,
-      "coverage": 0.8
+      "detected": 15,
+      "coverage": 1
     },
     {
       "name": "15-face-photo2.jpg",
@@ -25,7 +25,7 @@
       "coverage": 1
     }
   ],
-  "gridMeanCoverage": 0.95,
+  "gridMeanCoverage": 1,
   "idDocs": [
     {
       "name": "INDONESIAN_IDCARD_034415.jpg",
@@ -56,11 +56,11 @@
           "score": 0.958
         },
         {
-          "x": 833,
-          "y": 425,
-          "w": 80,
-          "h": 81,
-          "score": 0.841
+          "x": 838,
+          "y": 429,
+          "w": 70,
+          "h": 71,
+          "score": 0.895
         }
       ]
     },
@@ -117,7 +117,7 @@
       "gtCount": 15,
       "matched": 15,
       "detections": 15,
-      "meanIoU": 0.1408964363759918
+      "meanIoU": 0.1401703175488313
     }
   ],
   "collageRecall": 1,
@@ -192,7 +192,7 @@
   },
   "friends": {
     "images": 25,
-    "detections": 92,
+    "detections": 93,
     "imagesWithDetection": 25
   },
   "debugLogs": {

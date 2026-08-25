@@ -828,7 +828,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import {
   RotateCw,
   Scan,
@@ -850,7 +850,6 @@ import {
 import type { SpatialWord } from '~/utils/ocrEngine';
 import { processRegion, processDocument } from '~/utils/ocrEngine';
 import {
-  findContextualPIIWordIndices,
   extractFoundSensitiveKeywords,
   analyzeWords,
   PII_CATEGORIES,
@@ -957,6 +956,33 @@ function setInteractionMode(mode: InteractionMode, label: string) {
 
 // --- Panel Resize & Collapse State ---
 const isPanelOpen = ref(true);
+
+// Reactive viewport breakpoint. panelStyle used to read window.innerWidth
+// inside a computed, which never re-evaluates on resize — after crossing the
+// lg breakpoint the panel kept stale desktop/mobile geometry (a dark block
+// wedged over half the workspace). A reactive flag makes the style flip
+// instantly; a debounced refit re-fits and re-centers the canvas afterwards.
+const isDesktopViewport = ref(window.innerWidth >= 1024);
+let viewportResizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onWindowResize() {
+  isDesktopViewport.value = window.innerWidth >= 1024;
+  if (!isInitialized.value) return;
+  if (viewportResizeTimer) clearTimeout(viewportResizeTimer);
+  viewportResizeTimer = setTimeout(() => {
+    zoomReset();
+  }, 200);
+}
+
+onMounted(() => {
+  window.addEventListener('resize', onWindowResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowResize);
+  if (viewportResizeTimer) clearTimeout(viewportResizeTimer);
+});
+
 const sidebarWidth = ref(360); // Desktop width in px
 const bottomSheetHeight = ref(45); // Mobile height in vh (%)
 const isResizingDesktop = ref(false);
@@ -967,9 +993,7 @@ const resizeStartX = ref(0);
 const initialSidebarWidth = ref(360);
 
 const panelStyle = computed(() => {
-  if (typeof window === 'undefined') return {};
-  const isDesktop = window.innerWidth >= 1024;
-  if (isDesktop) {
+  if (isDesktopViewport.value) {
     return {
       width: isPanelOpen.value ? `${sidebarWidth.value}px` : '0px',
       minWidth: isPanelOpen.value ? '260px' : '0px',
@@ -982,7 +1006,6 @@ const panelStyle = computed(() => {
     };
   }
 });
-
 function togglePanel() {
   isPanelOpen.value = !isPanelOpen.value;
   setToolInfo(isPanelOpen.value ? 'Panel Pengaturan Terbuka' : 'Panel Ditutup (Layar Kanvas Maksimal)');
@@ -1143,7 +1166,9 @@ function showStatus(msg: string, type: 'info' | 'success' | 'warning' | 'error' 
 }
 
 const foundSensitiveKeywords = computed<FoundKeywordItem[]>(() => {
-  return extractFoundSensitiveKeywords(editableWords.value);
+  // Same type set as the redaction path, so every auto-redacted word has a
+  // panel entry (the previous default ALL_TYPES silently dropped 'date').
+  return extractFoundSensitiveKeywords(editableWords.value, activePiiTypes.value);
 });
 
 // Per-word precision analysis (confidence + auto/review flag) for the review UI.
@@ -1200,18 +1225,15 @@ const activePiiTypes = computed<PIIType[]>(() => {
   return types;
 });
 
-// Precompute standalone concrete regex matches
-const standalonePiiIndices = computed<Set<number>>(() => {
-  return findContextualPIIWordIndices(
-    editableWords.value,
-    activePiiTypes.value,
-    customPiiText.value
-  );
-});
-
-// Fast Set union combining standalone regexes and checked keyword indices
+// Single source of truth for auto-redaction: a word is redacted iff a CHECKED
+// detection entry covers it (plus custom-text matches). Standalone regex hits
+// used to be force-added outside the panel, so unchecking an entry appeared
+// to do nothing whenever the word also matched such a pattern, and 'date'-only
+// matches were redacted with no panel entry at all. foundSensitiveKeywords is
+// built from the same analysis with the same type set, so every automatic
+// selection now traces to exactly one listed checkbox.
 const autoDetectedPiiIndices = computed<Set<number>>(() => {
-  const indices = new Set<number>(standalonePiiIndices.value);
+  const indices = new Set<number>();
 
   for (const item of foundSensitiveKeywords.value) {
     if (checkedKeywords.value.has(item.id)) {
@@ -1645,7 +1667,7 @@ async function handleAdditionalFilesSelect(e: Event) {
       editableWords.value.push(...newEditableWords);
 
       // 7. Auto-detect sensitive keywords from new words and select them
-      const newFoundKeywords = extractFoundSensitiveKeywords(newEditableWords);
+      const newFoundKeywords = extractFoundSensitiveKeywords(newEditableWords, activePiiTypes.value);
       newFoundKeywords.forEach((item) => {
         checkedKeywords.value.add(item.id);
       });
