@@ -39,30 +39,42 @@ moves along a recall↔precision Pareto curve but cannot create missing reads.
 Consequence: the digitRecall ≥90% target requires an engine-level change
 (pre-approved RapidOCR PP-OCRv4 ONNX trial behind `OCRProvider`).
 
-## ONNX A/B Benchmark (2026-08-25) — REAL RESULTS
+## ONNX A/B Benchmark (2026-08-30) — FINAL RESULTS (PP-OCRv5 EN)
 
-| Metric | Tesseract (frozen baseline) | ONNX PP-OCRv4 (Chinese model) | Delta |
-|--------|----------------------------|-------------------------------|-------|
-| wordRecall (strict) | **90.6%** | 6.7% | −83.9% |
-| repairedRecall | **90.9%** | 26.5% | −64.4% |
-| wordPrecision | **88.3%** | 37.5% | −50.8% |
-| digitRecall | 77.6% | **95.9%** | +18.3% |
+| Metric | Tesseract (frozen baseline) | ONNX PP-OCRv5 (en_PP-OCRv5_rec + ch_PP-OCRv4_det) | Delta |
+|--------|----------------------------|---------------------------------------------------|-------|
+| wordRecall (strict) | **90.6%** | **95.4%** | +4.8% |
+| repairedRecall | **90.9%** | **95.4%** | +4.5% |
+| wordPrecision | **88.3%** | **95.7%** | +7.4% |
+| digitRecall | **77.6%** | **96.4%** | +18.8% |
 | fragRate | 0.0% | 0.0% | 0% |
 
-| Metric | Tesseract | ONNX PP-OCRv4 | Notes |
-|--------|-----------|---------------|-------|
-| ocr-eval (5 real fixtures) | PASS | PASS | Both pass PII gate |
+| Per-doc strict recall | Tesseract | ONNX V5 | Notes |
+|-----------------------|-----------|---------|-------|
+| bank_mutation | 98.6% | 100% | |
+| social_post | 100% | 100% | |
+| chat_light | 86.4% | 100% | ONNX +13.6pp |
+| chat_dark | 93.2% | 100% | ONNX +6.8pp |
+| receipt | 97.9% | 97.9% | tied |
+| article_news | 100% | 100% | tied |
+| app_screen | 85.2% | 100% | ONNX +14.8pp |
+| mutation_dense | 100% | 100% | tied |
+| bank_mutation@jpeg | 98.6% | 100% | ONNX +1.4pp |
+| article_news@half | 83.2% | 94.1% | ONNX +10.9pp |
+| app_screen@half | 50.8% | 52.5% | both struggle |
+| chat_dark@blur | 93.2% | 100% | ONNX +6.8pp |
 
 **Analysis**:
-- **DigitRecall**: ONNX **dominates** (+18.3pp) — PP-OCRv4's CRNN recognizes digits extremely well, even on degraded/half-scale renders where Tesseract fails.
-- **WordRecall/Precision**: Tesseract **dominates** on Latin-script UI documents — PP-OCRv4 is a Chinese model (trained on Chinese characters), so it fragments Latin words into single characters and produces many false-positive text lines (detecting UI elements as text).
-- **Root cause**: PP-OCRv4's detection model (DBNet) and recognition model (CRNN) are trained on Chinese datasets. On Latin-script synthetic UI documents, it over-detects text regions and recognizes individual characters rather than words.
+- **ONNX V5 dominates on every metric** — +4.8pp wordRecall, +7.4pp precision, +18.8pp digitRecall.
+- **Clean docs (8/8)**: ONNX at 100% on 7/8 (Tesseract had chat_light 86.4%, chat_dark 93.2%, app_screen 85.2%).
+- **Degraded @half**: Both engines struggle (Tesseract 50-83%, ONNX 52-94%). ONNX V5 is better.
+- **Degraded @jpeg/@blur**: ONNX at 100% strict on both.
 
-**Adoption Decision**: 
-- **Default remains Tesseract** (frozen at 90.6/88.3/77.6) for Latin-script documents.
-- **ONNX digitRecall of 95.9% is a breakthrough** for numeric-heavy documents (receipts, invoices, ID cards).
-- **Next milestone**: Integrate a Latin-script optimized ONNX model (PP-OCRv4 English/en_PP-OCRv3, or RapidOCR's English models) and/or implement script-aware routing (Chinese → PP-OCRv4, Latin → English model).
-- **Immediate value**: ONNX can be opted-in for digit-heavy documents (receipts, invoices) where its 95.9% digitRecall significantly outperforms Tesseract's 77.6%.
+**Architecture**: detection via `ch_PP-OCRv4_det_infer.onnx` → `splitIntoLineImages` (OpenCV minAreaRect + unclip + perspective crop) → recognition via `en_PP-OCRv5_rec_mobile.onnx` (438-class CTC, full Unicode Latin). CTC greedy decode with (pixel-127.5)/127.5 BGR preprocessing, 48px height resize. Word-level output via proportional sub-bbox splitting.
+
+**Engine selection**: `window.__OCR_ENGINE` / `?engine=` param / localStorage / default `'tesseract'`. Factory: `enableFallback` option (false = throw on init failure).
+
+**Engine logs on activation**: `[OCR Engine] Active Provider: ONNX | Models: en_PP-OCRv5_rec_mobile.onnx, ch_PP-OCRv4_det_infer.onnx`
 
 ## Running
 
