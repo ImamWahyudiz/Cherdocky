@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, onBeforeUnmount } from 'vue';
 import { processDocument, type SpatialWord } from '~/utils/ocrEngine';
 import {
   extractAllPdfText,
@@ -6,6 +6,8 @@ import {
   rasterizeAllPdfPages,
 } from '~/utils/pdfExtractor';
 import type { DetectedRegion } from '~/utils/faceDetector';
+import { createOcrEngine, clearEngineCache } from '~/utils/ocr/engineFactory';
+import { useToast } from '~/composables/useToast';
 
 export type DocumentType = 'image' | 'text-pdf' | 'image-pdf';
 
@@ -24,7 +26,29 @@ export interface DocumentPageItem {
   faceRegions: DetectedRegion[];
 }
 
+export type IngestionPhase = 'model-load' | 'preprocess' | 'detect' | 'recognize' | 'post';
+
 const RASTER_SCALE = 2;
+const DESKTOP_TIME_BUDGET_MS = 8000;
+const MOBILE_TIME_BUDGET_MS = 20000;
+
+function isLowEndDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const mem = (navigator as any).deviceMemory;
+  const cores = navigator.hardwareConcurrency;
+  if (typeof mem === 'number' && mem < 4) return true;
+  if (typeof cores === 'number' && cores < 4) return true;
+  return false;
+}
+
+function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function getTimeBudgetMs(): number {
+  return isMobileDevice() ? MOBILE_TIME_BUDGET_MS : DESKTOP_TIME_BUDGET_MS;
+}
 
 function getImageDimensions(fileOrUrl: Blob | string): Promise<{ width: number; height: number; url: string }> {
   return new Promise((resolve) => {
@@ -59,10 +83,68 @@ export const useDocumentIngestion = () => {
   const documentType = ref<DocumentType>('image');
   const detectedRegions = ref<DetectedRegion[]>([]);
   const pages = ref<DocumentPageItem[]>([]);
+  const processingPhase = ref<IngestionPhase>('model-load');
 
   // State for PDF choice modal
   const showPdfChoiceModal = ref(false);
   const pendingPdfFile = ref<File | null>(null);
+
+  const toast = useToast();
+  let timeBudgetTimer: ReturnType<typeof setTimeout> | null = null;
+  let timeBudgetWarningShown = false;
+
+  // B5: Detect low-end device for engine default
+  const deviceIsLowEnd = isLowEndDevice();
+  if (deviceIsLowEnd) {
+    console.warn('[Ingestion] Low-end device detected, consider Tesseract for better performance');
+  }
+
+  // C3: Memory pressure handler
+  const handleVisibilityChange = async () => {
+    if (document.visibilityState === 'hidden') {
+      console.warn('[Ingestion] Tab hidden, clearing engine cache to free memory');
+      clearEngineCache();
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  }
+
+  onBeforeUnmount(() => {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+    if (timeBudgetTimer) {
+      clearTimeout(timeBudgetTimer);
+      timeBudgetTimer = null;
+    }
+  });
+
+  // B1: Preload engine on file drop (fire-and-forget)
+  function preloadEngine(): void {
+    createOcrEngine().catch(() => {}); // no-op on failure
+  }
+
+  // B3: Time budget guard
+  function startTimeBudgetGuard(onWarn: () => void): void {
+    if (timeBudgetTimer) clearTimeout(timeBudgetTimer);
+    timeBudgetWarningShown = false;
+    const budget = getTimeBudgetMs();
+    timeBudgetTimer = setTimeout(() => {
+      if (isProcessing.value && !timeBudgetWarningShown) {
+        timeBudgetWarningShown = true;
+        onWarn();
+      }
+    }, budget);
+  }
+
+  function clearTimeBudgetGuard(): void {
+    if (timeBudgetTimer) {
+      clearTimeout(timeBudgetTimer);
+      timeBudgetTimer = null;
+    }
+  }
 
   const cleanupPageUrls = () => {
     pages.value.forEach((p) => {
@@ -131,6 +213,11 @@ export const useDocumentIngestion = () => {
     documentType.value = 'image-pdf';
     isProcessing.value = true;
     progress.value = 0.05;
+    processingPhase.value = 'model-load';
+
+    startTimeBudgetGuard(() => {
+      toast.info('Still working… this may take a moment.', { duration: 5000 });
+    });
 
     try {
       const rasterPages = await rasterizeAllPdfPages(pdfFile, RASTER_SCALE, (p) => {
@@ -146,10 +233,11 @@ export const useDocumentIngestion = () => {
         const rPage = rasterPages[i];
         const pageNum = rPage.pageNum;
 
-        const pageWords = await processDocument(rPage.blob!, (p) => {
+        const pageWords = await processDocument(rPage.blob!, (p, phase) => {
           const stepBase = 0.4 + (i / rasterPages.length) * 0.55;
           const stepSize = 0.55 / rasterPages.length;
           progress.value = Math.min(0.98, stepBase + p * stepSize);
+          if (phase) processingPhase.value = phase as IngestionPhase;
         });
 
         const taggedWords = pageWords.map((w) => ({
@@ -182,9 +270,16 @@ export const useDocumentIngestion = () => {
       progress.value = 1;
     } catch (error: any) {
       console.error('Process PDF as OCR error:', error);
-      alert('Gagal menjalankan OCR pada PDF: ' + (error?.message || error));
+      const errMsg = error?.message || String(error);
+      const isMemoryError = /out of memory|allocation|oom|compile/i.test(errMsg);
+      if (isMemoryError) {
+        console.warn('[Ingestion] Memory/compile error detected, clearing engine cache for fallback');
+        clearEngineCache();
+      }
+      toast.error('Gagal menjalankan OCR pada PDF: ' + errMsg, { duration: 5000 });
     } finally {
       isProcessing.value = false;
+      clearTimeBudgetGuard();
     }
   };
 
@@ -205,6 +300,11 @@ export const useDocumentIngestion = () => {
     documentType.value = 'image';
     isProcessing.value = true;
     progress.value = 0.05;
+    processingPhase.value = 'model-load';
+
+    startTimeBudgetGuard(() => {
+      toast.info('Still working… this may take a moment.', { duration: 5000 });
+    });
 
     try {
       cleanupPageUrls();
@@ -218,10 +318,11 @@ export const useDocumentIngestion = () => {
         // Preload image dimensions safely
         const imgMeta = await getImageDimensions(imgFile);
 
-        const pageWords = await processDocument(imgFile, (p) => {
+        const pageWords = await processDocument(imgFile, (p, phase) => {
           const stepBase = (i / imageFiles.length) * 0.9;
           const stepSize = 0.9 / imageFiles.length;
           progress.value = Math.min(0.95, stepBase + p * stepSize);
+          if (phase) processingPhase.value = phase as IngestionPhase;
         });
 
         const taggedWords = pageWords.map((w) => ({
@@ -254,9 +355,17 @@ export const useDocumentIngestion = () => {
       progress.value = 1;
     } catch (error: any) {
       console.error('Process images error:', error);
-      alert('Gagal memproses gambar: ' + (error?.message || error));
+      // C2: Error boundary — on OOM/compile errors, terminate engine and fall back
+      const errMsg = error?.message || String(error);
+      const isMemoryError = /out of memory|allocation|oom|compile/i.test(errMsg);
+      if (isMemoryError) {
+        console.warn('[Ingestion] Memory/compile error detected, clearing engine cache for fallback');
+        clearEngineCache();
+      }
+      toast.error('Gagal memproses gambar: ' + errMsg, { duration: 5000 });
     } finally {
       isProcessing.value = false;
+      clearTimeBudgetGuard();
     }
   };
 
@@ -310,6 +419,9 @@ export const useDocumentIngestion = () => {
     );
 
     if (validList.length === 0) return;
+
+    // B1: Preload engine (fire-and-forget) while user reviews the file
+    preloadEngine();
 
     uploadedFiles.value = validList;
     file.value = validList[0];

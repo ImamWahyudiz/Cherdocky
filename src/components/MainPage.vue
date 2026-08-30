@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useDropZone } from '@vueuse/core';
 import {
   redactImage,
@@ -14,12 +14,17 @@ import ExportSuccessPage, { type RedactionExportStats } from '~/components/Expor
 import type { SpatialWord } from '~/utils/ocrEngine';
 import type { DetectedRegion } from '~/utils/faceDetector';
 import { useDocumentIngestion, type DocumentPageItem } from '~/composables/useDocumentIngestion';
+import { useToast } from '~/composables/useToast';
 import {
   UploadCloud,
   Loader2,
   FileText,
   Scan,
   Sparkles,
+  Cpu,
+  ChevronDown,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-vue-next';
 
 const {
@@ -44,6 +49,130 @@ const customPiiText = ref('');
 const redactionRegions = ref<DetectedRegion[]>([]);
 const selectedRedactionColor = ref('#000000');
 const verifiedPages = ref<DocumentPageItem[]>([]);
+
+// Engine selector state
+type EngineChoice = 'auto' | 'tesseract' | 'onnx';
+const ENGINE_STORAGE_KEY = 'cherdocky.ocr-engine';
+const engineChoice = ref<EngineChoice>('auto');
+const engineDropdownOpen = ref(false);
+
+const ENGINE_OPTIONS: { value: EngineChoice; label: string; description: string }[] = [
+  { value: 'auto', label: 'Auto', description: 'Use configured default' },
+  { value: 'tesseract', label: 'Tesseract', description: 'Classic OCR engine' },
+  { value: 'onnx', label: 'ONNX (PP-OCRv5)', description: 'Modern neural engine' },
+];
+
+function getInitialEngineChoice(): EngineChoice {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('engine');
+    if (fromUrl === 'tesseract' || fromUrl === 'onnx') return fromUrl;
+    const fromWindow = (window as any).__OCR_ENGINE;
+    if (fromWindow === 'tesseract' || fromWindow === 'onnx') return fromWindow;
+    const fromStorage = localStorage.getItem(ENGINE_STORAGE_KEY);
+    if (fromStorage === 'tesseract' || fromStorage === 'onnx') return fromStorage;
+  } catch (_) {}
+  return 'auto';
+}
+
+function getEffectiveEngine(): 'tesseract' | 'onnx' {
+  if (engineChoice.value === 'auto') {
+    const w = (window as any).__OCR_ENGINE;
+    if (w === 'onnx' || w === 'tesseract') return w;
+    try {
+      const stored = localStorage.getItem(ENGINE_STORAGE_KEY);
+      if (stored === 'onnx' || stored === 'tesseract') return stored;
+    } catch (_) {}
+    return 'tesseract';
+  }
+  return engineChoice.value;
+}
+
+const activeEngine = computed(() => getEffectiveEngine());
+
+const toast = useToast();
+
+function setEngineChoice(choice: EngineChoice) {
+  engineChoice.value = choice;
+  engineDropdownOpen.value = false;
+
+  try {
+    if (choice === 'auto') {
+      localStorage.removeItem(ENGINE_STORAGE_KEY);
+      delete (window as any).__OCR_ENGINE;
+      toast.success(
+        'Engine set to Auto. Will use configured default on next processing.',
+        { duration: 4000 }
+      );
+    } else {
+      localStorage.setItem(ENGINE_STORAGE_KEY, choice);
+      (window as any).__OCR_ENGINE = choice;
+      toast.success(
+        `Engine set to ${choice === 'onnx' ? 'ONNX (PP-OCRv5)' : 'Tesseract'}. Reload or drop new file to apply.`,
+        { duration: 4000 }
+      );
+    }
+  } catch (err) {
+    toast.warning('Could not persist engine preference; using in-memory only.');
+  }
+}
+
+function cycleEngine() {
+  const order: EngineChoice[] = ['auto', 'tesseract', 'onnx'];
+  const idx = order.indexOf(engineChoice.value);
+  const next = order[(idx + 1) % order.length];
+  setEngineChoice(next);
+}
+
+function onEngineKeydown(e: KeyboardEvent) {
+  if (e.shiftKey && (e.key === 'E' || e.key === 'e') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const target = e.target as HTMLElement;
+    const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+    if (!isInput) {
+      e.preventDefault();
+      cycleEngine();
+    }
+  }
+}
+
+onMounted(() => {
+  engineChoice.value = getInitialEngineChoice();
+  // Sync window.__OCR_ENGINE with stored choice on load
+  if (engineChoice.value !== 'auto') {
+    (window as any).__OCR_ENGINE = engineChoice.value;
+  }
+  window.addEventListener('keydown', onEngineKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onEngineKeydown);
+});
+
+// Engine detection for empty-state switch
+const switchToTesseract = () => {
+  setEngineChoice('tesseract');
+};
+
+const showEmptyState = computed(() => {
+  return !isProcessing.value && !isVerified.value && file.value !== null && result.value.length === 0;
+});
+
+// Progress phase labels (D2)
+const progressPhaseLabel = computed(() => {
+  const p = progress.value;
+  if (p < 0.15) return 'Memuat model…';
+  if (p < 0.4) return 'Mendeteksi teks…';
+  if (p < 0.9) return 'Membaca kata…';
+  return 'Menyelesaikan…';
+});
+
+const progressDetail = computed(() => {
+  const p = progress.value;
+  if (p < 0.15) return 'Menginisialisasi engine OCR…';
+  if (p < 0.4) return 'Menemukan area teks pada gambar…';
+  if (p < 0.9) return 'Mengekstrak karakter dan kata…';
+  return 'Memfinalisasi hasil…';
+});
 
 // State for Success / Download Page
 const showSuccessPage = ref(false);
@@ -464,20 +593,98 @@ const onFileSelect = (event: Event) => {
       </div>
     </div>
 
-    <!-- State 4: Default Initial Upload / Home Screen -->
+<!-- State 4: Default Initial Upload / Home Screen -->
     <template v-else>
       <!-- Header Section -->
       <div class="text-center mb-8 pt-6">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-4">
           <Sparkles class="w-3.5 h-3.5" />
-          100% Offline &amp; Aman di Peramban Anda
+          100% Offline & Aman di Peramban Anda
         </div>
         <h1 class="text-3xl sm:text-4xl font-extrabold mb-3 text-gray-900 dark:text-white tracking-tight">
-          Document Ingestion &amp; PII Redaction
+          Document Ingestion & PII Redaction
         </h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Sensor data pribadi sensitif pada dokumen PDF multi-halaman dan gambar secara instan tanpa mengunggah ke server luar.
         </p>
+      </div>
+
+      <!-- Engine Selector -->
+      <div class="mb-6 flex justify-center">
+        <div class="relative inline-flex">
+          <button
+            type="button"
+            @click="engineDropdownOpen = !engineDropdownOpen"
+            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md hover:border-gray-400 dark:hover:border-gray-500 transition-all text-sm font-medium text-gray-900 dark:text-white"
+            aria-haspopup="listbox"
+            :aria-expanded="engineDropdownOpen"
+          >
+            <Cpu class="w-4 h-4" :class="activeEngine === 'onnx' ? 'text-blue-500' : 'text-amber-500'" />
+            <span>
+              <template v-if="engineChoice === 'auto'">
+                Auto → {{ activeEngine === 'onnx' ? 'ONNX' : 'Tesseract' }}
+              </template>
+              <template v-else>{{ engineChoice === 'onnx' ? 'ONNX (PP-OCRv5)' : 'Tesseract' }}</template>
+            </span>
+            <ChevronDown class="w-4 h-4 text-gray-500" :class="{ 'rotate-180': engineDropdownOpen }" />
+          </button>
+          <Transition
+            enter-active-class="transition ease-out duration-100"
+            enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition ease-in duration-75"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-95"
+          >
+            <div
+              v-if="engineDropdownOpen"
+              class="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-20"
+              role="listbox"
+              @click.outside="engineDropdownOpen = false"
+            >
+              <div
+                v-for="opt in ENGINE_OPTIONS"
+                :key="opt.value"
+                @click="setEngineChoice(opt.value)"
+                role="option"
+                :aria-selected="engineChoice === opt.value"
+                class="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+              >
+                <span
+                  :class="[
+                    engineChoice === opt.value ? 'opacity-100' : 'opacity-0',
+                    opt.value === 'onnx' ? 'text-blue-500' : opt.value === 'tesseract' ? 'text-amber-500' : 'text-gray-500',
+                  ]"
+                  class="w-4 h-4 flex items-center justify-center"
+                >
+                  <Check class="w-3.5 h-3.5" />
+                </span>
+                <div class="flex-1 text-left min-w-0">
+                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ opt.label }}</p>
+                  <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate">{{ opt.description }}</p>
+                </div>
+                <span
+                  v-if="opt.value === 'auto'"
+                  class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium"
+                >
+                  Default
+                </span>
+                <span
+                  v-else-if="opt.value === 'onnx' && activeEngine === 'onnx'"
+                  class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium"
+                >
+                  Active
+                </span>
+                <span
+                  v-else-if="opt.value === 'tesseract' && activeEngine === 'tesseract'"
+                  class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-medium"
+                >
+                  Active
+                </span>
+              </div>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <!-- Dropzone Area -->
@@ -500,7 +707,7 @@ const onFileSelect = (event: Event) => {
           <UploadCloud class="w-8 h-8" />
         </div>
         <h3 class="text-lg sm:text-xl font-bold mb-1.5 text-gray-900 dark:text-white">
-          Tarik &amp; Lepaskan Dokumen di Sini
+          Tarik & Lepaskan Dokumen di Sini
         </h3>
         <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4">
           Mendukung PDF (multi-halaman), JPEG, dan PNG. Bisa unggah banyak gambar sekaligus.
@@ -514,6 +721,31 @@ const onFileSelect = (event: Event) => {
         </button>
       </div>
 
+      <!-- Empty State: No text detected -->
+      <div
+        v-if="showEmptyState"
+        class="w-full max-w-2xl mx-auto mb-6 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300"
+        role="alert"
+      >
+        <AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-amber-800 dark:text-amber-200">
+            Tidak ada teks yang terdeteksi
+          </p>
+          <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+            Coba ganti engine OCR ke Tesseract untuk hasil yang lebih baik pada dokumen ini.
+          </p>
+        </div>
+        <button
+          type="button"
+          @click="switchToTesseract"
+          class="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors whitespace-nowrap"
+        >
+          <RotateCcw class="w-3 h-3 inline mr-1" />
+          Coba Tesseract
+        </button>
+      </div>
+
       <!-- Ingestion / Processing Progress Card -->
       <div
         v-if="isProcessing"
@@ -522,7 +754,7 @@ const onFileSelect = (event: Event) => {
         <div class="flex items-center justify-between">
           <span class="font-semibold text-sm flex items-center gap-2 text-gray-900 dark:text-white">
             <Loader2 class="w-4 h-4 animate-spin text-blue-500" />
-            Memproses dokumen secara aman di peramban…
+            <span>{{ progressPhaseLabel }}</span>
           </span>
           <span class="text-sm text-gray-500 dark:text-gray-400 font-mono font-bold">{{ Math.round(progress * 100) }}%</span>
         </div>
@@ -532,6 +764,9 @@ const onFileSelect = (event: Event) => {
             :style="{ width: `${progress * 100}%` }"
           ></div>
         </div>
+        <p class="text-[11px] text-gray-500 dark:text-gray-400 text-center font-mono">
+          {{ progressDetail }}
+        </p>
       </div>
     </template>
 

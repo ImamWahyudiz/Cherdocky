@@ -47,7 +47,7 @@ export interface SpatialWord {
  * in later without rewriting callers (useDocumentIngestion, DocumentVerification).
  */
 export interface OCRProvider {
-  processDocument(file: Blob | File, onProgress?: (progress: number) => void): Promise<SpatialWord[]>;
+  processDocument(file: Blob | File, onProgress?: (progress: number, phase?: string) => void): Promise<SpatialWord[]>;
   processRegion(
     imageUrl: string,
     rect: { x: number; y: number; w: number; h: number },
@@ -568,7 +568,7 @@ async function runOcrPipeline(
   docType: DocumentType,
   targetW: number,
   targetH: number,
-  onProgress?: (p: number) => void
+  onProgress?: (p: number, phase?: string) => void
 ): Promise<SpatialWord[]> {
   const config = getTesseractConfig(docType);
 
@@ -643,7 +643,7 @@ async function runOcrPipeline(
   if (q2.contrast < 0.25) working = applyUnsharpMask(working, 0.3);
   if (q2.score < 0.4 && upscaleFactor <= 1.2) working = applyThreshold(working, 'sauvola');
   // Preprocessing chain done; recognition dominates the remaining time.
-  onProgress?.(0.08);
+  onProgress?.(0.08, 'preprocess');
 
   const processedBlob = await imageDataToBlob(working);
 
@@ -692,8 +692,10 @@ async function runOcrPipeline(
     const slotSpan = (passesPerVariant[vi] / totalSweepPasses) * (SWEEP_END - SWEEP_START);
     const slotStart = sweepCursor;
     sweepCursor += slotSpan;
+    onProgress?.(slotStart, 'recognize');
     const w = await recognizeToWords(engine, blob, config, docType, qv, (passIdx, totalPasses, tessP) => {
-      onProgress?.(slotStart + ((passIdx + tessP) / totalPasses) * slotSpan);
+      const sub = (passIdx + tessP) / totalPasses;
+      onProgress?.(slotStart + sub * slotSpan, passIdx === 0 && sub < 0.3 ? 'detect' : 'recognize');
     });
     if (w.length > bestWords.length) {
       bestWords = w;
@@ -710,11 +712,11 @@ async function runOcrPipeline(
     words,
     config,
     docType,
-    (done, total, tessP) => onProgress?.(RESCAN_START + ((done + tessP) / Math.max(1, total)) * (RESCAN_END - RESCAN_START))
+    (done, total, tessP) => onProgress?.(RESCAN_START + ((done + tessP) / Math.max(1, total)) * (RESCAN_END - RESCAN_START), 'recognize')
   );
-  onProgress?.(0.94);
+  onProgress?.(0.92, 'post');
   words = await recoverNikFromLayout(engine, processedBlob, words, config, docType);
-  onProgress?.(0.97);
+  onProgress?.(0.97, 'post');
 
   // Token repair (stitch + majority rules) — generic documents only. Cards
   // keep verbatim reads: their layout matching and gates are tuned around
@@ -748,11 +750,11 @@ class TesseractOCRProvider implements OCRProvider {
 
   async processDocument(
     file: Blob | File,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, phase?: string) => void
   ): Promise<SpatialWord[]> {
     try {
       const engine = await this.getEngine();
-      if (onProgress) onProgress(0.05);
+      if (onProgress) onProgress(0.05, 'model-load');
 
       const original = await blobToImageData(file);
       let docType = preClassifyFromDimensions(original.width, original.height).type;
@@ -770,10 +772,10 @@ class TesseractOCRProvider implements OCRProvider {
         docType,
         original.width,
         original.height,
-        (p) => onProgress?.(0.05 + p * 0.93)
+        (p, phase) => onProgress?.(0.05 + p * 0.93, phase)
       );
 
-      if (onProgress) onProgress(1);
+      if (onProgress) onProgress(1, 'post');
       return words;
     } finally {
       // Engine manages its own progress sink internally
@@ -843,7 +845,7 @@ export function getOCRProvider(): OCRProvider {
 
 export async function processDocument(
   file: Blob | File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number, phase?: string) => void
 ): Promise<SpatialWord[]> {
   return _provider.processDocument(file, onProgress);
 }

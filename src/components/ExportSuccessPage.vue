@@ -130,8 +130,8 @@
         </div>
       </div>
 
-      <!-- Additional Details: Redaction Color & File Sizes -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+      <!-- Additional Details: Redaction Color, File Sizes & Engine -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
         
         <!-- Redaction Color Swatch -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
@@ -156,6 +156,20 @@
             </span>
             <span v-if="originalFileSize > 0 && exportedFileSize < originalFileSize" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-bold">
               -{{ Math.round((1 - exportedFileSize / originalFileSize) * 100) }}%
+            </span>
+          </div>
+        </div>
+
+        <!-- OCR Engine Used -->
+        <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+          <span class="text-xs text-gray-400 font-medium">OCR Engine</span>
+          <div class="flex items-center gap-2">
+            <component :is="activeEngine === 'onnx' ? Cpu : Loader2" class="w-4 h-4" />
+            <span
+              class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+              :class="engineBadgeClass"
+            >
+              {{ engineDisplayText }}
             </span>
           </div>
         </div>
@@ -486,6 +500,8 @@ import {
   Edit3,
   PlusCircle,
   Sparkles,
+  Cpu,
+  Loader2,
 } from 'lucide-vue-next';
 
 export interface RedactionExportStats {
@@ -522,6 +538,36 @@ const fileExtension = computed(() => {
     return name.substring(lastDot);
   }
   return props.stats.documentType.includes('pdf') ? '.pdf' : '.jpg';
+});
+
+// Engine info (reads from window.__OCR_ENGINE set by MainPage)
+type EngineMode = 'auto' | 'tesseract' | 'onnx';
+
+function getResolvedEngine(): 'tesseract' | 'onnx' {
+  const w = typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : undefined;
+  if (w === 'onnx' || w === 'tesseract') return w;
+  try {
+    const stored = localStorage.getItem('cherdocky.ocr-engine');
+    if (stored === 'onnx' || stored === 'tesseract') return stored;
+  } catch (_) {}
+  return 'tesseract';
+}
+
+const activeEngine = computed<'tesseract' | 'onnx'>(() => getResolvedEngine());
+
+const engineDisplayText = computed(() => {
+  const choice = (typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : null) as EngineMode | null;
+  if (choice === 'onnx') return 'ONNX v5';
+  if (choice === 'tesseract') return 'Tesseract';
+  if (choice === 'auto') return `Auto → ${activeEngine.value === 'onnx' ? 'ONNX' : 'Tesseract'}`;
+  return `Auto → ${activeEngine.value === 'onnx' ? 'ONNX' : 'Tesseract'}`;
+});
+
+const engineBadgeClass = computed(() => {
+  const choice = (typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : null) as EngineMode | null;
+  if (choice === 'onnx') return 'bg-blue-600 text-white border-blue-500/30';
+  if (choice === 'tesseract') return 'bg-amber-600 text-black border-amber-500/30';
+  return 'bg-gray-600 text-white border-gray-500/30';
 });
 
 function getDefaultBaseName(): string {

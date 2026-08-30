@@ -6,10 +6,18 @@
       <div class="flex items-center gap-2">
         <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.7)]"></span>
         <h2 class="hidden sm:inline text-sm sm:text-base font-bold text-white tracking-tight">
-          Verifikasi &amp; Sensor Dokumen
+          Verifikasi & Sensor Dokumen
         </h2>
         <span class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 font-semibold uppercase tracking-wider">
           {{ documentType === 'text-pdf' ? 'PDF Teks' : documentType === 'image-pdf' ? 'PDF Scan' : 'Gambar' }}
+        </span>
+        <span
+          class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex items-center gap-1"
+          :class="engineBadgeClass"
+          :title="engineBadgeTitle"
+        >
+          <component :is="activeEngine === 'onnx' ? Cpu : Loader2" class="w-3 h-3" />
+          {{ engineBadgeText }}
         </span>
       </div>
 
@@ -846,6 +854,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   PanelRightClose,
+  Cpu,
 } from 'lucide-vue-next';
 import type { SpatialWord } from '~/utils/ocrEngine';
 import { processRegion, processDocument } from '~/utils/ocrEngine';
@@ -879,6 +888,43 @@ const emit = defineEmits<{
   }): void;
   (e: 'cancel'): void;
 }>();
+
+// --- Engine Badge (reads window.__OCR_ENGINE set by MainPage) ---
+type EngineMode = 'auto' | 'tesseract' | 'onnx';
+
+function getResolvedEngine(): 'tesseract' | 'onnx' {
+  const w = typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : undefined;
+  if (w === 'onnx' || w === 'tesseract') return w;
+  try {
+    const stored = localStorage.getItem('cherdocky.ocr-engine');
+    if (stored === 'onnx' || stored === 'tesseract') return stored;
+  } catch (_) {}
+  return 'tesseract';
+}
+
+const activeEngine = computed<'tesseract' | 'onnx'>(() => getResolvedEngine());
+
+const engineBadgeText = computed(() => {
+  const choice = (typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : null) as EngineMode | null;
+  if (choice === 'onnx') return 'ONNX v5';
+  if (choice === 'tesseract') return 'Tesseract';
+  if (choice === 'auto') return `Auto → ${activeEngine.value === 'onnx' ? 'ONNX' : 'Tesseract'}`;
+  return `Auto → ${activeEngine.value === 'onnx' ? 'ONNX' : 'Tesseract'}`;
+});
+
+const engineBadgeClass = computed(() => {
+  const choice = (typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : null) as EngineMode | null;
+  if (choice === 'onnx') return 'bg-blue-600 text-white border-blue-500/30';
+  if (choice === 'tesseract') return 'bg-amber-600 text-black border-amber-500/30';
+  return 'bg-gray-600 text-white border-gray-500/30';
+});
+
+const engineBadgeTitle = computed(() => {
+  const choice = (typeof window !== 'undefined' ? (window as any).__OCR_ENGINE : null) as EngineMode | null;
+  if (choice === 'onnx') return 'Engine: ONNX (PP-OCRv5)';
+  if (choice === 'tesseract') return 'Engine: Tesseract.js';
+  return `Engine: Auto (resolved to ${activeEngine.value === 'onnx' ? 'ONNX' : 'Tesseract'})`;
+});
 
 // --- Local Pages State ---
 const localPages = ref<DocumentPageItem[]>([]);

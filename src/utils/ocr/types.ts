@@ -12,6 +12,8 @@ export interface OcrEngineCapabilities {
   nikRecovery: boolean;
 }
 
+export type OcrPhase = 'model-load' | 'preprocess' | 'detect' | 'recognize' | 'post';
+
 export interface RecognizeOptions {
   psm?: number;
   whitelist?: string;
@@ -19,7 +21,7 @@ export interface RecognizeOptions {
   docType?: DocumentType;
   disableDictionaries?: boolean;
   dpi?: string;
-  onProgress?: (progress: number) => void;
+  onProgress?: (progress: number, phase?: OcrPhase) => void;
 }
 
 export interface OcrResult {
