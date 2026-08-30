@@ -1,4 +1,3 @@
-import { createWorker, type Worker } from 'tesseract.js';
 import {
   blobToImageData,
   imageDataToBlob,
@@ -24,6 +23,8 @@ import { isValidNik } from './piiDetector';
 import { KTP_FIELD_PRIORS, isKtpLike, hasNikCorroboration } from './ktpLayoutPriors';
 import { repairTokens } from './tokenRepair';
 import { sanitizeTokens } from './tokenSanitizer';
+import type { IOcrEngine } from './ocr/types';
+import { createOcrEngine } from './ocr/engineFactory';
 
 export interface SpatialWord {
   text: string;
@@ -54,41 +55,10 @@ export interface OCRProvider {
   ): Promise<SpatialWord[]>;
 }
 
-// Lazy persistent singleton worker for Indonesian + English OCR
-let _cachedWorker: Worker | null = null;
-let _workerInitializing: Promise<Worker> | null = null;
-
-// The tesseract logger is bound ONCE at worker creation, but the worker is a
-// singleton shared by every document. Routing events through this mutable sink
-// lets each processDocument call receive recognition progress; the previous
-// closure-capture design left every document after the first with a stale
-// callback, so the UI sat at its initial progress value for minutes.
-let _recognitionProgressSink: ((p: number) => void) | null = null;
-
-async function getWorker(): Promise<Worker> {
-  if (_cachedWorker) return _cachedWorker;
-
-  if (!_workerInitializing) {
-    _workerInitializing = (async () => {
-      const worker = await createWorker(['ind', 'eng'], 1, {
-        logger: (m) => {
-          if (_recognitionProgressSink) {
-            // Coarse init/download stages creep forward so a cold start on a
-            // slow connection never reads as frozen at 0.
-            if (m.status === 'loading tesseract core') _recognitionProgressSink(0.01);
-            else if (m.status === 'initializing tesseract') _recognitionProgressSink(0.02);
-            else if (m.status === 'loading language traineddata') _recognitionProgressSink(0.03);
-            else if (m.status === 'recognizing text') _recognitionProgressSink(m.progress);
-          }
-        },
-      });
-      _cachedWorker = worker;
-      return worker;
-    })();
-  }
-
-  return _workerInitializing;
-}
+// Worker lifecycle and recognition are owned by IOcrEngine implementations
+// (see src/utils/ocr/tesseractEngine.ts). This module orchestrates the pipeline
+// — preprocessing, variant sweep, pass scoring, rescans, recovery, geometry,
+// shared post-processing — and consumes an engine instance per document.
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -146,45 +116,6 @@ async function cropImageSource(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Tesseract parameter + filtering
-// ---------------------------------------------------------------------------
-
-// Broad whitelist used whenever a profile doesn't specify one. Always setting a
-// whitelist guarantees the per-document config fully resets the worker state and
-// prevents a digit-only whitelist from a previous numeric pass leaking through.
-function buildParams(config: TesseractConfig, docType: DocumentType): Record<string, string> {
-  const params: Record<string, string> = {
-    tessedit_pageseg_mode: String(config.psm),
-    preserve_interword_spaces: '1',
-    // Screenshots and canvas renders carry no DPI metadata; without a hint
-    // Tesseract assumes 70 DPI and treats small glyphs as noise. A fixed
-    // mid-range value makes character-size heuristics behave like print.
-    user_defined_dpi: '150',
-    // ALWAYS emit both charsets explicitly: setParameters MERGES into the
-    // worker's persistent state, so omitting a key silently keeps whatever
-    // the previous pass left there (e.g. a digit-only rescan whitelist
-    // leaking into every subsequent document).
-    tessedit_char_whitelist: config.whitelist ?? '',
-    tessedit_char_blacklist: config.blacklist ?? '',
-  };
-  // Disable dictionaries for ID-style documents (mostly non-dictionary tokens)
-  // so the decoder doesn't "fix" a 16-digit NIK into dictionary words.
-  if (docType === DocumentType.KTP_PHOTO || docType === DocumentType.ID_CARD) {
-    params.load_freq_dawg = '0';
-    params.load_system_dawg = '0';
-  }
-  return params;
-}
-
-function flattenWords(raw: any): { text: string; bbox: any; confidence: number }[] {
-  if (!raw?.blocks) return [];
-  return raw.blocks
-    .flatMap((b: any) => b.paragraphs)
-    .flatMap((p: any) => p.lines)
-    .flatMap((l: any) => l.words);
-}
-
 function filterWords(
   rawWords: { text: string; bbox: any; confidence: number }[],
   thresholds: ConfidenceThresholds,
@@ -229,7 +160,7 @@ function filterWords(
 }
 
 async function recognizeToWords(
-  worker: Worker,
+  engine: IOcrEngine,
   image: Blob,
   config: TesseractConfig,
   docType: DocumentType,
@@ -238,7 +169,9 @@ async function recognizeToWords(
 ): Promise<SpatialWord[]> {
   // Try primary PSM, then fallbacks — pick the pass that yields the most words
   // (a multi-field card on psm:8 returns nothing; fallback to psm:6/3 finds all).
-  const candidates = [config.psm, ...getFallbackPSMs(docType)];
+  const candidates = engine.capabilities.psmSweep
+    ? [config.psm, ...getFallbackPSMs(docType)]
+    : [config.psm];
   const seen = new Set<number>();
   const psms: number[] = [];
   for (const p of candidates) {
@@ -266,14 +199,14 @@ async function recognizeToWords(
   let bestSolidOverall = -1;
   let digitPass: { words: SpatialWord[]; score: number } | null = null;
   for (const psm of psms) {
-    await worker.setParameters({ ...buildParams(config, docType), tessedit_pageseg_mode: String(psm) } as any);
     const passIndex = psms.indexOf(psm);
-    if (onPassProgress) {
-      _recognitionProgressSink = (p) => onPassProgress(passIndex, psms.length, p);
-    }
-    const { data } = await worker.recognize(image, {}, { blocks: true });
-    _recognitionProgressSink = null;
-    const rawWords = flattenWords(data);
+    const rawWords = await engine.recognize(image, {
+      psm,
+      docType,
+      onProgress: onPassProgress
+        ? (p) => onPassProgress(passIndex, psms.length, p)
+        : undefined,
+    });
     const thresholds = getConfidenceThresholds(quality, docType);
     const words = filterWords(
       rawWords,
@@ -356,10 +289,10 @@ const DIGIT_ONLY_WHITELIST = '0123456789-+() ';
  * by destructive post-processing.
  */
 async function reScanNumericWords(
-  worker: Worker,
+  engine: IOcrEngine,
   imageBlob: Blob,
   words: SpatialWord[],
-  config: TesseractConfig,
+  _config: TesseractConfig,
   docType: DocumentType,
   onCandidateProgress?: (done: number, total: number, tessProgress: number) => void
 ): Promise<SpatialWord[]> {
@@ -374,38 +307,29 @@ async function reScanNumericWords(
   if (numericCandidates.length === 0) return words;
 
   const result = words.slice();
-  // The worker persists across documents: rescans temporarily override the
-  // page params, so the finally block must restore the FULL profile set —
-  // restoring only the PSM leaks a digit-only whitelist into every later
-  // document's recognition.
-  const baseParams = buildParams(config, docType);
-  try {
-    for (let ci = 0; ci < numericCandidates.length; ci++) {
-      const w = numericCandidates[ci];
-      const crop = await cropImageSource(imageBlob, { x: w.x, y: w.y, w: w.width, h: w.height });
-      await worker.setParameters({ tessedit_char_whitelist: DIGIT_ONLY_WHITELIST } as any);
-      if (onCandidateProgress) {
-        _recognitionProgressSink = (p) => onCandidateProgress(ci, numericCandidates.length, p);
-      }
-      const { data } = await worker.recognize(crop, {}, { blocks: true });
-      _recognitionProgressSink = null;
-      const raw = flattenWords(data);
-      const cleaned = raw
-        .map((r) =>
-          r.text.replace(/[oOlISB]/g, (m) => ({ o: '0', O: '0', l: '1', I: '1', S: '5', B: '8' }[m] ?? m))
-        )
-        .filter((t) => /^\d[\d\-+() ]*$/.test(t) && t.replace(/\D/g, '').length >= 4)
-        .sort((a, b) => b.replace(/\D/g, '').length - a.replace(/\D/g, '').length)[0];
+  for (let ci = 0; ci < numericCandidates.length; ci++) {
+    const w = numericCandidates[ci];
+    const crop = await cropImageSource(imageBlob, { x: w.x, y: w.y, w: w.width, h: w.height });
+    const raw = await engine.recognize(crop, {
+      docType,
+      whitelist: DIGIT_ONLY_WHITELIST,
+      onProgress: onCandidateProgress
+        ? (p) => onCandidateProgress(ci, numericCandidates.length, p)
+        : undefined,
+    });
+    const cleaned = raw
+      .map((r) =>
+        r.text.replace(/[oOlISB]/g, (m) => ({ o: '0', O: '0', l: '1', I: '1', S: '5', B: '8' }[m] ?? m))
+      )
+      .filter((t) => /^\d[\d\-+() ]*$/.test(t) && t.replace(/\D/g, '').length >= 4)
+      .sort((a, b) => b.replace(/\D/g, '').length - a.replace(/\D/g, '').length)[0];
 
-      if (cleaned) {
-        const idx = result.indexOf(w);
-        if (idx >= 0) {
-          result[idx] = { ...w, text: cleaned, confidence: Math.max(w.confidence, 60) };
-        }
+    if (cleaned) {
+      const idx = result.indexOf(w);
+      if (idx >= 0) {
+        result[idx] = { ...w, text: cleaned, confidence: Math.max(w.confidence, 60) };
       }
     }
-  } finally {
-    await worker.setParameters(baseParams as any);
   }
 
   return result;
@@ -425,10 +349,10 @@ async function reScanNumericWords(
  * otherwise nothing is emitted (no-op on any other document).
  */
 async function recoverNikFromLayout(
-  worker: Worker,
+  engine: IOcrEngine,
   imageBlob: Blob,
   words: SpatialWord[],
-  config: TesseractConfig,
+  _config: TesseractConfig,
   docType: DocumentType
 ): Promise<SpatialWord[]> {
   if (!isKtpLike(docType)) return words;
@@ -472,12 +396,11 @@ async function recoverNikFromLayout(
     const candidates: { digits: string; conf: number }[] = [];
     const collect = async (source: Blob, psms: string[]) => {
       for (const psm of psms) {
-        await worker.setParameters({
-          tessedit_char_whitelist: '0123456789',
-          tessedit_pageseg_mode: psm,
-        } as any);
-        const { data } = await worker.recognize(source, {}, { blocks: true });
-        const rawWords = flattenWords(data);
+        const rawWords = await engine.recognize(source, {
+          docType,
+          psm: parseInt(psm, 10),
+          whitelist: '0123456789',
+        });
         const digits = rawWords
           .map((r) =>
             r.text.replace(/[oOlISB]/g, (m) => ({ o: '0', O: '0', l: '1', I: '1', S: '5', B: '8' }[m] ?? m))
@@ -516,8 +439,6 @@ async function recoverNikFromLayout(
     ];
   } catch {
     return words;
-  } finally {
-    await worker.setParameters(buildParams(config, docType) as any);
   }
 }
 
@@ -642,7 +563,7 @@ function mapBoxBack(
 // ---------------------------------------------------------------------------
 
 async function runOcrPipeline(
-  worker: Worker,
+  engine: IOcrEngine,
   source: ImageData,
   docType: DocumentType,
   targetW: number,
@@ -771,7 +692,7 @@ async function runOcrPipeline(
     const slotSpan = (passesPerVariant[vi] / totalSweepPasses) * (SWEEP_END - SWEEP_START);
     const slotStart = sweepCursor;
     sweepCursor += slotSpan;
-    const w = await recognizeToWords(worker, blob, config, docType, qv, (passIdx, totalPasses, tessP) => {
+    const w = await recognizeToWords(engine, blob, config, docType, qv, (passIdx, totalPasses, tessP) => {
       onProgress?.(slotStart + ((passIdx + tessP) / totalPasses) * slotSpan);
     });
     if (w.length > bestWords.length) {
@@ -784,7 +705,7 @@ async function runOcrPipeline(
   const RESCAN_START = SWEEP_END;
   const RESCAN_END = 0.92;
   words = await reScanNumericWords(
-    worker,
+    engine,
     processedBlob,
     words,
     config,
@@ -792,7 +713,7 @@ async function runOcrPipeline(
     (done, total, tessP) => onProgress?.(RESCAN_START + ((done + tessP) / Math.max(1, total)) * (RESCAN_END - RESCAN_START))
   );
   onProgress?.(0.94);
-  words = await recoverNikFromLayout(worker, processedBlob, words, config, docType);
+  words = await recoverNikFromLayout(engine, processedBlob, words, config, docType);
   onProgress?.(0.97);
 
   // Token repair (stitch + majority rules) — generic documents only. Cards
@@ -815,12 +736,22 @@ function countPsmPasses(config: TesseractConfig, docType: DocumentType): number 
 // ---------------------------------------------------------------------------
 
 class TesseractOCRProvider implements OCRProvider {
+  private _engine: IOcrEngine | null = null;
+
+  private async getEngine(): Promise<IOcrEngine> {
+    if (!this._engine) {
+      // Use config from window.__OCR_ENGINE (set by runner.html) or default
+      this._engine = await createOcrEngine();
+    }
+    return this._engine;
+  }
+
   async processDocument(
     file: Blob | File,
     onProgress?: (progress: number) => void
   ): Promise<SpatialWord[]> {
     try {
-      const worker = await getWorker();
+      const engine = await this.getEngine();
       if (onProgress) onProgress(0.05);
 
       const original = await blobToImageData(file);
@@ -834,7 +765,7 @@ class TesseractOCRProvider implements OCRProvider {
       }
 
       const words = await runOcrPipeline(
-        worker,
+        engine,
         original,
         docType,
         original.width,
@@ -845,7 +776,7 @@ class TesseractOCRProvider implements OCRProvider {
       if (onProgress) onProgress(1);
       return words;
     } finally {
-      _recognitionProgressSink = null;
+      // Engine manages its own progress sink internally
     }
   }
 
@@ -854,7 +785,7 @@ class TesseractOCRProvider implements OCRProvider {
     rect: { x: number; y: number; w: number; h: number },
     existingWords: SpatialWord[] = []
   ): Promise<SpatialWord[]> {
-    const worker = await getWorker();
+    const engine = await this.getEngine();
 
     const img = await loadImage(imageUrl);
     const cropW = Math.max(1, Math.round(rect.w));
@@ -868,7 +799,7 @@ class TesseractOCRProvider implements OCRProvider {
     const cropImageData = ctx.getImageData(0, 0, cropW, cropH);
 
     const docType = preClassifyFromDimensions(cropW, cropH).type;
-    let words = await runOcrPipeline(worker, cropImageData, docType, cropW, cropH);
+    let words = await runOcrPipeline(engine, cropImageData, docType, cropW, cropH);
 
     // Shift into page coordinate space
     words = words.map((w) => ({ ...w, x: w.x + rect.x, y: w.y + rect.y }));

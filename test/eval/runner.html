@@ -6,6 +6,16 @@
   </head>
   <body>
     <div id="status">idle</div>
+    <script>
+      // Inject OCR engine selection from URL query param before module loads
+      // Usage: runner.html?engine=onnx|tesseract
+      const params = new URLSearchParams(window.location.search);
+      const engine = params.get('engine');
+      if (engine === 'onnx' || engine === 'tesseract') {
+        window.__OCR_ENGINE = engine;
+        console.log('[Runner] OCR engine set via URL:', engine);
+      }
+    </script>
     <script type="module" src="./runner.ts"></script>
   </body>
 </html>

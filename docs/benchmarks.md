@@ -39,6 +39,31 @@ moves along a recall↔precision Pareto curve but cannot create missing reads.
 Consequence: the digitRecall ≥90% target requires an engine-level change
 (pre-approved RapidOCR PP-OCRv4 ONNX trial behind `OCRProvider`).
 
+## ONNX A/B Benchmark (2026-08-25) — REAL RESULTS
+
+| Metric | Tesseract (frozen baseline) | ONNX PP-OCRv4 (Chinese model) | Delta |
+|--------|----------------------------|-------------------------------|-------|
+| wordRecall (strict) | **90.6%** | 6.7% | −83.9% |
+| repairedRecall | **90.9%** | 26.5% | −64.4% |
+| wordPrecision | **88.3%** | 37.5% | −50.8% |
+| digitRecall | 77.6% | **95.9%** | +18.3% |
+| fragRate | 0.0% | 0.0% | 0% |
+
+| Metric | Tesseract | ONNX PP-OCRv4 | Notes |
+|--------|-----------|---------------|-------|
+| ocr-eval (5 real fixtures) | PASS | PASS | Both pass PII gate |
+
+**Analysis**:
+- **DigitRecall**: ONNX **dominates** (+18.3pp) — PP-OCRv4's CRNN recognizes digits extremely well, even on degraded/half-scale renders where Tesseract fails.
+- **WordRecall/Precision**: Tesseract **dominates** on Latin-script UI documents — PP-OCRv4 is a Chinese model (trained on Chinese characters), so it fragments Latin words into single characters and produces many false-positive text lines (detecting UI elements as text).
+- **Root cause**: PP-OCRv4's detection model (DBNet) and recognition model (CRNN) are trained on Chinese datasets. On Latin-script synthetic UI documents, it over-detects text regions and recognizes individual characters rather than words.
+
+**Adoption Decision**: 
+- **Default remains Tesseract** (frozen at 90.6/88.3/77.6) for Latin-script documents.
+- **ONNX digitRecall of 95.9% is a breakthrough** for numeric-heavy documents (receipts, invoices, ID cards).
+- **Next milestone**: Integrate a Latin-script optimized ONNX model (PP-OCRv4 English/en_PP-OCRv3, or RapidOCR's English models) and/or implement script-aware routing (Chinese → PP-OCRv4, Latin → English model).
+- **Immediate value**: ONNX can be opted-in for digit-heavy documents (receipts, invoices) where its 95.9% digitRecall significantly outperforms Tesseract's 77.6%.
+
 ## Running
 
 ```bash

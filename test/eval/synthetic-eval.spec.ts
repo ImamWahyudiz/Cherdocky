@@ -286,13 +286,36 @@ function buildInstances(): Instance[] {
 
 // --- Test ----------------------------------------------------------------------
 
-test.describe('Synthetic document extraction eval', () => {
+// Engine selection via env var: OCR_ENGINE=onnx|tesseract (default: tesseract)
+const ENGINE = (process.env.OCR_ENGINE as 'onnx' | 'tesseract') ?? 'tesseract';
+
+test.describe(`Synthetic document extraction eval [${ENGINE}]`, () => {
   test('scores word/digit recall across rendered UI documents', async ({ page }) => {
     test.setTimeout(900_000); // 12 instances x up to ~60s OCR
-    await page.goto('/test/eval/runner.html');
+    
+    // Capture console logs for debugging
+    page.on('console', msg => console.log(`[Browser Console] ${msg.type()}: ${msg.text()}`));
+    page.on('pageerror', err => console.log(`[Browser Error] ${err.message}`));
+    
+    await page.goto(`/test/eval/runner.html?engine=${ENGINE}`);
+    
+    // Wait for the module to load first
     await page.waitForFunction(() => typeof (window as any).runEval === 'function', null, {
-      timeout: 120_000,
+      timeout: 180_000,
     });
+    console.log('[Test] runEval is available');
+    
+    // Then check engine config
+    await page.waitForFunction(() => (window as any).__OCR_ENGINE, null, {
+      timeout: 30_000,
+    });
+    console.log('[Test] __OCR_ENGINE is set');
+    
+    // Verify the correct engine is active
+    await page.evaluate(() => { (window as any).__OCR_DEBUG = true; });
+    const activeEngine = await page.evaluate(() => (window as any).__OCR_ENGINE);
+    console.log(`[Test] Active OCR Engine: ${activeEngine}`);
+    expect(activeEngine).toBe(ENGINE);
 
     interface DocScore {
       degrade?: DegradeMode;
