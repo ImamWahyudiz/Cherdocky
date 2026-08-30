@@ -22,13 +22,13 @@ async function initDet(): Promise<void> {
 async function initRecog(): Promise<void> {
   if (recogSession) return;
   const ort = await import('onnxruntime-web');
-  recogSession = await ort.InferenceSession.create('/models/ocr/en_PP-OCRv4_rec_mobile.onnx');
-  const resp = await fetch('/models/ocr/en_dict.txt');
+  recogSession = await ort.InferenceSession.create('/models/ocr/en_PP-OCRv5_rec_mobile.onnx');
+  const resp = await fetch('/models/ocr/en_v5_dict.txt');
   const txt = await resp.text();
   const dict = txt.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.length > 0);
-  if (dict.length === 95) dict.push(' ');
+  if (dict.length === 436) dict.push(' ');
   recogDict = dict;
-  console.log('[ONNX-EN] Recognition model loaded, dict:', recogDict.length, '(expected 96)');
+  console.log('[ONNX-EN] Recognition model loaded, dict:', recogDict.length, '(expected 437)');
 }
 
 function preprocessDet(img: HTMLCanvasElement): { input: Tensor; detW: number; detH: number } {
