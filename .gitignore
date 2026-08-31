@@ -49,6 +49,11 @@ test/Generated E-ktp/
 test/image_ocr/
 test-results/
 *.traineddata
+*.traineddata.gz
+*traindata*
+*train_data*
+*training_data*
+test/fixtures/
 test/*.eval.json
 playwright-report/
 
@@ -65,3 +70,11 @@ test/example code ipynb/
 
 # Personal face dataset (local-only)
 test/Friends/
+
+# Deprecated / unused OCR models and dictionaries
+public/models/ocr/ch_PP-OCRv4_rec_infer.onnx
+public/models/ocr/en_PP-OCRv4_rec_mobile.onnx
+public/models/ocr/en_PP-OCRv3_det_mobile.onnx
+public/models/ocr/ch_ppocr_mobile_v2.0_cls_infer.onnx
+public/models/ocr/ppocr_keys_v1.txt
+public/models/ocr/en_dict.txt
