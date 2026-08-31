@@ -20,7 +20,7 @@ import {
   Loader2,
   FileText,
   Scan,
-  Sparkles,
+  // Sparkles,
   Cpu,
   ChevronDown,
   AlertTriangle,
