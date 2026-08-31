@@ -597,10 +597,10 @@ const onFileSelect = (event: Event) => {
     <template v-else>
       <!-- Header Section -->
       <div class="text-center mb-8 pt-6">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-4">
+        <!-- <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-4">
           <Sparkles class="w-3.5 h-3.5" />
           100% Offline & Aman di Peramban Anda
-        </div>
+        </div> -->
         <h1 class="text-3xl sm:text-4xl font-extrabold mb-3 text-gray-900 dark:text-white tracking-tight">
           Document Ingestion & PII Redaction
         </h1>
