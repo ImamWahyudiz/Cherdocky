@@ -182,7 +182,7 @@ export const useDocumentIngestion = () => {
         newPages.push({
           id: `pdf-page-${pageNum}`,
           pageIndex: pageNum,
-          label: `Halaman ${pageNum}`,
+          label: `Page ${pageNum}`,
           type: 'pdf-page',
           sourceBlob: rPage.blob,
           previewUrl: URL.createObjectURL(rPage.blob || new Blob([])),
@@ -203,7 +203,7 @@ export const useDocumentIngestion = () => {
       progress.value = 1;
     } catch (error: any) {
       console.error('Process PDF as text error:', error);
-      alert('Gagal mengekstrak teks PDF: ' + (error?.message || error));
+      alert('Failed to extract PDF text: ' + (error?.message || error));
     } finally {
       isProcessing.value = false;
     }
@@ -249,7 +249,7 @@ export const useDocumentIngestion = () => {
         newPages.push({
           id: `pdf-page-${pageNum}`,
           pageIndex: pageNum,
-          label: `Halaman ${pageNum}`,
+          label: `Page ${pageNum}`,
           type: 'pdf-page',
           sourceBlob: rPage.blob,
           previewUrl: URL.createObjectURL(rPage.blob || new Blob([])),
@@ -276,7 +276,7 @@ export const useDocumentIngestion = () => {
         console.warn('[Ingestion] Memory/compile error detected, clearing engine cache for fallback');
         clearEngineCache();
       }
-      toast.error('Gagal menjalankan OCR pada PDF: ' + errMsg, { duration: 5000 });
+      toast.error('Failed to run OCR on PDF: ' + errMsg, { duration: 5000 });
     } finally {
       isProcessing.value = false;
       clearTimeBudgetGuard();
@@ -334,7 +334,7 @@ export const useDocumentIngestion = () => {
         newPages.push({
           id: `img-${pageNum}-${Date.now()}`,
           pageIndex: pageNum,
-          label: imageFiles.length > 1 ? `Gambar ${pageNum} (${imgFile.name})` : imgFile.name,
+          label: imageFiles.length > 1 ? `Image ${pageNum} (${imgFile.name})` : imgFile.name,
           type: 'image',
           sourceBlob: imgFile,
           previewUrl: imgMeta.url,
@@ -362,7 +362,7 @@ export const useDocumentIngestion = () => {
         console.warn('[Ingestion] Memory/compile error detected, clearing engine cache for fallback');
         clearEngineCache();
       }
-      toast.error('Gagal memproses gambar: ' + errMsg, { duration: 5000 });
+      toast.error('Failed to process image: ' + errMsg, { duration: 5000 });
     } finally {
       isProcessing.value = false;
       clearTimeBudgetGuard();
@@ -389,7 +389,7 @@ export const useDocumentIngestion = () => {
         pages.value.push({
           id: `img-${pageNum}-${Date.now()}`,
           pageIndex: pageNum,
-          label: `Gambar ${pageNum} (${imgFile.name})`,
+          label: `Image ${pageNum} (${imgFile.name})`,
           type: 'image',
           sourceBlob: imgFile,
           previewUrl: imgMeta.url,
@@ -406,7 +406,7 @@ export const useDocumentIngestion = () => {
       progress.value = 1;
     } catch (error: any) {
       console.error('Add more images error:', error);
-      alert('Gagal menambahkan gambar: ' + (error?.message || error));
+      alert('Failed to add images: ' + (error?.message || error));
     } finally {
       isProcessing.value = false;
     }

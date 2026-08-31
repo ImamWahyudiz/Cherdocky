@@ -7,10 +7,10 @@
         <CheckCircle2 class="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.5]" />
       </div>
       <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">
-        Dokumen Berhasil Diredaksi!
+        Document Successfully Redacted!
       </h1>
       <p class="text-xs sm:text-sm text-gray-400 max-w-lg mx-auto leading-relaxed">
-        Seluruh data pribadi, wajah, dan area sensitif telah dihapus secara permanen di dalam peramban Anda. Dokumen siap diunduh dan aman untuk dibagikan.
+        All personal data, faces, and sensitive areas have been permanently removed inside your browser. Your document is ready to download and safe to share.
       </p>
     </div>
 
@@ -28,8 +28,8 @@
           
           <div class="flex-1 min-w-0 w-full">
             <label class="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <span>Nama Berkas Unduhan:</span>
-              <span class="text-[10px] text-blue-400 font-normal lowercase">(dapat diubah sesuai keinginan)</span>
+              <span>Download Filename:</span>
+              <span class="text-[10px] text-blue-400 font-normal lowercase">(customizable)</span>
             </label>
             
             <div class="relative flex items-center max-w-md w-full">
@@ -38,7 +38,7 @@
                 v-model="userBaseFilename"
                 :placeholder="getDefaultBaseName()"
                 class="w-full bg-gray-950/90 border border-gray-700 hover:border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 text-white text-sm font-semibold rounded-xl pl-3.5 pr-16 py-2.5 transition-all outline-none font-mono"
-                title="Ketik untuk mengubah nama berkas yang akan diunduh"
+                title="Type to customize the download filename"
               />
               <span class="absolute right-2 px-2 py-1 rounded-md bg-gray-800 border border-gray-700 text-xs font-mono font-bold text-blue-400 pointer-events-none">
                 {{ fileExtension }}
@@ -47,14 +47,14 @@
 
             <div class="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-400">
               <span class="px-2 py-0.5 rounded bg-gray-800 border border-gray-700 font-semibold text-gray-300">
-                {{ stats.documentType === 'text-pdf' ? 'PDF Teks Asli' : stats.documentType === 'image-pdf' ? 'PDF Visual Scan' : stats.totalPages > 1 ? `${stats.totalPages} Lembar Gambar` : 'Gambar' }}
+                {{ stats.documentType === 'text-pdf' ? 'Native Text PDF' : stats.documentType === 'image-pdf' ? 'Visual Scan PDF' : stats.totalPages > 1 ? `${stats.totalPages} Image Pages` : 'Image' }}
               </span>
               <span>•</span>
               <span class="font-mono font-medium text-emerald-400 font-bold">
                 {{ formatBytes(exportedFileSize) }}
               </span>
               <span v-if="originalFileSize > 0" class="text-[11px] text-gray-500">
-                (Asli: {{ formatBytes(originalFileSize) }})
+                (Original: {{ formatBytes(originalFileSize) }})
               </span>
             </div>
           </div>
@@ -68,7 +68,7 @@
             class="w-full sm:w-auto h-12 px-8 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2.5"
           >
             <Download class="w-5 h-5 stroke-[2.5]" />
-            <span>Unduh Dokumen</span>
+            <span>Download Document</span>
           </button>
         </div>
       </div>
@@ -81,12 +81,12 @@
         <div class="flex items-center gap-2">
           <ShieldCheck class="w-5 h-5 text-blue-400" />
           <h3 class="text-sm sm:text-base font-bold text-white">
-            Ringkasan Statistik &amp; Audit Redaksi
+            Redaction Statistics &amp; Audit Summary
           </h3>
         </div>
         <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-semibold flex items-center gap-1.5 shadow-sm">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          100% Bersih &amp; Terproteksi
+          100% Clean &amp; Protected
         </span>
       </div>
 
@@ -95,37 +95,37 @@
         
         <!-- Metric 1: Total Kata Disensor -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex flex-col justify-between shadow-sm">
-          <span class="text-xs text-gray-400 font-medium">Kata Disensor</span>
+          <span class="text-xs text-gray-400 font-medium">Redacted Words</span>
           <div class="mt-2 flex items-baseline gap-1">
             <span class="text-2xl font-extrabold text-red-400 font-mono">{{ stats.totalRedactedWords }}</span>
-            <span class="text-xs text-gray-500">kata</span>
+            <span class="text-xs text-gray-500">words</span>
           </div>
         </div>
 
         <!-- Metric 2: Wajah Disensor -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex flex-col justify-between shadow-sm">
-          <span class="text-xs text-gray-400 font-medium">Wajah Disensor</span>
+          <span class="text-xs text-gray-400 font-medium">Redacted Faces</span>
           <div class="mt-2 flex items-baseline gap-1">
             <span class="text-2xl font-extrabold text-purple-400 font-mono">{{ stats.totalRedactedFaces }}</span>
-            <span class="text-xs text-gray-500">wajah</span>
+            <span class="text-xs text-gray-500">faces</span>
           </div>
         </div>
 
         <!-- Metric 3: Blok Manual -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex flex-col justify-between shadow-sm">
-          <span class="text-xs text-gray-400 font-medium">Blok Manual</span>
+          <span class="text-xs text-gray-400 font-medium">Manual Blocks</span>
           <div class="mt-2 flex items-baseline gap-1">
             <span class="text-2xl font-extrabold text-amber-400 font-mono">{{ stats.totalManualRegions }}</span>
-            <span class="text-xs text-gray-500">area</span>
+            <span class="text-xs text-gray-500">areas</span>
           </div>
         </div>
 
         <!-- Metric 4: Total Lembar -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex flex-col justify-between shadow-sm">
-          <span class="text-xs text-gray-400 font-medium">Total Lembar</span>
+          <span class="text-xs text-gray-400 font-medium">Total Pages</span>
           <div class="mt-2 flex items-baseline gap-1">
             <span class="text-2xl font-extrabold text-gray-100 font-mono">{{ stats.totalPages }}</span>
-            <span class="text-xs text-gray-500">halaman</span>
+            <span class="text-xs text-gray-500">pages</span>
           </div>
         </div>
       </div>
@@ -135,7 +135,7 @@
         
         <!-- Redaction Color Swatch -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
-          <span class="text-xs text-gray-400 font-medium">Warna Sensor Digunakan</span>
+          <span class="text-xs text-gray-400 font-medium">Redaction Color Used</span>
           <div class="flex items-center gap-2">
             <span
               class="w-5 h-5 rounded-full border border-gray-600 shadow-sm"
@@ -149,7 +149,7 @@
 
         <!-- File Compression / Difference -->
         <div class="bg-gray-850 border border-gray-750 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
-          <span class="text-xs text-gray-400 font-medium">Ukuran File Ekspor</span>
+          <span class="text-xs text-gray-400 font-medium">Export File Size</span>
           <div class="flex items-center gap-2">
             <span class="text-xs font-mono font-bold text-white">
               {{ formatBytes(exportedFileSize) }}
@@ -180,7 +180,7 @@
         <div class="flex items-center gap-1.5 mb-2.5">
           <span class="w-2 h-2 rounded-full bg-red-500"></span>
           <h4 class="text-xs font-bold text-gray-200 uppercase tracking-wider">
-            Daftar Teks &amp; Kata yang Telah Disensor ({{ uniqueRedactedWordsList.length }} unik / {{ stats.totalRedactedWords }} total)
+            List of Redacted Words &amp; Text ({{ uniqueRedactedWordsList.length }} unique / {{ stats.totalRedactedWords }} total)
           </h4>
         </div>
 
@@ -205,7 +205,7 @@
 
         <div v-else class="p-4 bg-gray-850/40 rounded-xl border border-dashed border-gray-800 text-center">
           <p class="text-xs text-gray-400">
-            Tidak ada kata teks yang disensor (dokumen diproteksi melalui sensor blok manual / deteksi wajah).
+            No text words were redacted (document protected via manual blocks / face detection).
           </p>
         </div>
       </div>
@@ -214,7 +214,7 @@
       <div class="p-3.5 bg-blue-950/30 border border-blue-900/50 rounded-xl flex items-start gap-3">
         <Shield class="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
         <div class="text-xs text-blue-200 leading-relaxed">
-          <span class="font-bold">Jaminan Keamanan 100% Client-Side:</span> Dokumen asli dan hasil sensor diproses seutuhnya di memori browser lokal perangkat Anda tanpa pernah dikirim, disimpan, atau dianalisis di server mana pun.
+          <span class="font-bold">100% Client-Side Security Guarantee:</span> Original documents and redacted outputs are processed entirely in your device's local browser memory, never sent, stored, or analyzed on any server.
         </div>
       </div>
 
@@ -230,7 +230,7 @@
         class="w-full sm:w-auto h-10 px-5 bg-gray-800 hover:bg-gray-750 active:scale-95 text-gray-300 text-xs sm:text-sm font-medium rounded-xl border border-gray-700 transition-all flex items-center justify-center gap-2 shadow-sm"
       >
         <Edit3 class="w-4 h-4 text-gray-400" />
-        <span>Sesuaikan / Edit Ulang Dokumen Ini</span>
+        <span>Adjust / Re-edit Document</span>
       </button>
 
       <!-- Clean Reset / New Document -->
@@ -240,7 +240,7 @@
         class="w-full sm:w-auto h-10 px-6 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
       >
         <PlusCircle class="w-4 h-4" />
-        <span>Sensor Dokumen Baru</span>
+        <span>Redact New Document</span>
       </button>
     </div>
 
@@ -254,14 +254,14 @@
           <FileImage class="w-6 h-6" />
         </div>
         <h3 class="text-lg font-bold text-white mb-1.5">
-          Pilih Format &amp; Kualitas Unduhan
+          Select Download Format &amp; Quality
         </h3>
         <p class="text-xs text-gray-400 mb-5 leading-relaxed">
-          Pilih versi berkas yang ingin Anda simpan:
+          Choose the version of the file you want to save:
         </p>
 
         <div class="space-y-3">
-          <!-- Option 1: Gambar Optimal (Rekomendasi) -->
+          <!-- Option 1: Optimal Image (Recommended) -->
           <button
             type="button"
             @click="chooseOption('image-optimal')"
@@ -272,16 +272,16 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-blue-300 flex items-center gap-1.5">
-                <span>Gambar Optimal (Rekomendasi)</span>
-                <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-200">Kompak &amp; Tajam</span>
+                <span>Optimal Image (Recommended)</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-200">Compact &amp; Sharp</span>
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Teks tetap terbaca sangat jelas, ukuran file hemat dan pas untuk dikirim/diunggah.
+                Text remains crisp and legible, compact file size ideal for sharing or uploading.
               </div>
             </div>
           </button>
 
-          <!-- Option 2: Gambar Kualitas Maksimal (HD) -->
+          <!-- Option 2: Max Quality Image (HD) -->
           <button
             type="button"
             @click="chooseOption('image-max')"
@@ -292,15 +292,15 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-gray-200">
-                Gambar Kualitas Maksimal (HD / Lossless)
+                Maximum Quality Image (HD / Lossless)
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Resolusi penuh tanpa kompresi (ukuran berkas lebih besar).
+                Full resolution without compression (larger file size).
               </div>
             </div>
           </button>
 
-          <!-- Option 3: Dokumen PDF -->
+          <!-- Option 3: PDF Document -->
           <button
             type="button"
             @click="chooseOption('single-pdf-optimal')"
@@ -311,10 +311,10 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-purple-300">
-                Konversi Jadi Dokumen PDF
+                Convert to PDF Document
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Mengonversi gambar menjadi berkas PDF siap simpan / cetak.
+                Converts the image into a clean PDF ready for saving or printing.
               </div>
             </div>
           </button>
@@ -325,7 +325,7 @@
           @click="showSingleImageChoiceModal = false"
           class="mt-4 w-full py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
         >
-          Batal
+          Cancel
         </button>
       </div>
     </div>
@@ -340,10 +340,10 @@
           <Layers class="w-6 h-6" />
         </div>
         <h3 class="text-lg font-bold text-white mb-1.5">
-          Pilihan Format Unduhan Multi-Lembar
+          Multi-Page Download Format Options
         </h3>
         <p class="text-xs text-gray-400 mb-5 leading-relaxed">
-          Anda menyensor {{ stats.totalPages }} lembar gambar. Silakan pilih format berkas unduhan:
+          You redacted {{ stats.totalPages }} image pages. Please select your download format:
         </p>
 
         <div class="space-y-3">
@@ -358,11 +358,11 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-blue-300 flex items-center gap-1.5">
-                <span>Gabung Jadi 1 File PDF (Optimal)</span>
-                <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-200">Rekomendasi</span>
+                <span>Merge into 1 PDF File (Optimal)</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-200">Recommended</span>
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Semua gambar dirangkum menjadi satu dokumen PDF dengan ukuran hemat &amp; teks tajam.
+                All images compiled into a single PDF document with balanced size &amp; sharp text.
               </div>
             </div>
           </button>
@@ -378,10 +378,10 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-gray-200">
-                Gabung Jadi 1 File PDF (Kualitas HD Penuh)
+                Merge into 1 PDF File (Full HD Quality)
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Mempertahankan ketajaman visual maksimal tanpa kompresi agresif.
+                Preserves maximum visual fidelity without aggressive compression.
               </div>
             </div>
           </button>
@@ -397,10 +397,10 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-emerald-300">
-                Unduh Arsip ZIP (Gambar Terpisah)
+                Download ZIP Archive (Individual Images)
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Menyimpan seluruh file gambar individual yang sudah disensor ke dalam satu paket ZIP.
+                Saves all individual redacted image files packaged in a single ZIP archive.
               </div>
             </div>
           </button>
@@ -411,7 +411,7 @@
           @click="showMultiImageChoiceModal = false"
           class="mt-4 w-full py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
         >
-          Batal
+          Cancel
         </button>
       </div>
     </div>
@@ -426,10 +426,10 @@
           <FileText class="w-6 h-6" />
         </div>
         <h3 class="text-lg font-bold text-white mb-1.5">
-          Pilih Kualitas Berkas PDF
+          Select PDF Document Quality
         </h3>
         <p class="text-xs text-gray-400 mb-5 leading-relaxed">
-          Tentukan profil ukuran &amp; kualitas untuk PDF hasil scan ini:
+          Specify the size &amp; quality profile for this scanned PDF:
         </p>
 
         <div class="space-y-3">
@@ -444,11 +444,11 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-blue-300 flex items-center gap-1.5">
-                <span>PDF Ukuran Optimal (Rekomendasi)</span>
-                <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-200">Cepat &amp; Jelas</span>
+                <span>Optimal Size PDF (Recommended)</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-200">Fast &amp; Crisp</span>
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Mengompresi halaman secara cerdas agar ukuran file seimbang dan teks tetap tajam.
+                Intelligently compresses pages for balanced file size while keeping text sharp.
               </div>
             </div>
           </button>
@@ -464,10 +464,10 @@
             </div>
             <div>
               <div class="font-semibold text-sm text-white group-hover:text-gray-200">
-                PDF Kualitas HD Maksimal
+                Maximum HD Quality PDF
               </div>
               <div class="text-[11px] text-gray-400 mt-0.5">
-                Resolusi tertinggi tanpa kompresi tambahan (cocok untuk cetak dokumen penting).
+                Highest resolution without extra compression (ideal for high-quality printing).
               </div>
             </div>
           </button>
@@ -478,7 +478,7 @@
           @click="showScannedPdfChoiceModal = false"
           class="mt-4 w-full py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
         >
-          Batal
+          Cancel
         </button>
       </div>
     </div>
@@ -532,7 +532,7 @@ const emit = defineEmits<{
 const userBaseFilename = ref('');
 
 const fileExtension = computed(() => {
-  const name = props.filename || 'dokumen_redacted.pdf';
+  const name = props.filename || 'document_redacted.pdf';
   const lastDot = name.lastIndexOf('.');
   if (lastDot !== -1) {
     return name.substring(lastDot);
@@ -620,13 +620,13 @@ function formatBytes(bytes: number, decimals = 1): string {
 
 function getColorName(hex: string): string {
   const colors: Record<string, string> = {
-    '#000000': 'Hitam',
-    '#ffffff': 'Putih',
-    '#374151': 'Abu-abu',
+    '#000000': 'Black',
+    '#ffffff': 'White',
+    '#374151': 'Gray',
     '#1e3a8a': 'Navy',
-    '#b91c1c': 'Merah',
+    '#b91c1c': 'Red',
   };
-  return colors[hex?.toLowerCase()] || hex || 'Hitam';
+  return colors[hex?.toLowerCase()] || hex || 'Black';
 }
 
 const uniqueRedactedWordsList = computed(() => {

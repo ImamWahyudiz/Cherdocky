@@ -160,24 +160,24 @@ const showEmptyState = computed(() => {
 // Progress phase labels (D2)
 const progressPhaseLabel = computed(() => {
   const p = progress.value;
-  if (p < 0.15) return 'Memuat model…';
-  if (p < 0.4) return 'Mendeteksi teks…';
-  if (p < 0.9) return 'Membaca kata…';
-  return 'Menyelesaikan…';
+  if (p < 0.15) return 'Loading model…';
+  if (p < 0.4) return 'Detecting text…';
+  if (p < 0.9) return 'Recognizing words…';
+  return 'Finalizing…';
 });
 
 const progressDetail = computed(() => {
   const p = progress.value;
-  if (p < 0.15) return 'Menginisialisasi engine OCR…';
-  if (p < 0.4) return 'Menemukan area teks pada gambar…';
-  if (p < 0.9) return 'Mengekstrak karakter dan kata…';
-  return 'Memfinalisasi hasil…';
+  if (p < 0.15) return 'Initializing OCR engine…';
+  if (p < 0.4) return 'Finding text regions on image…';
+  if (p < 0.9) return 'Extracting characters and words…';
+  return 'Finalizing results…';
 });
 
 // State for Success / Download Page
 const showSuccessPage = ref(false);
 const exportedBlob = ref<Blob | null>(null);
-const exportedFilename = ref('dokumen_redacted.pdf');
+const exportedFilename = ref('document_redacted.pdf');
 const exportedFileSize = ref(0);
 const originalFileSize = ref(0);
 const exportStats = ref<RedactionExportStats>({
@@ -341,7 +341,7 @@ const executeDirectRedaction = async (
     }
   } catch (error) {
     console.error('Redaction failed:', error);
-    alert('Gagal menyensor dokumen. Periksa konsol untuk informasi selengkapnya.');
+    alert('Failed to redact document. Check console for details.');
   } finally {
     isRedacting.value = false;
   }
@@ -382,7 +382,7 @@ const exportSingleImageAsPdf = async (qualityPreset: QualityPreset = 'optimal', 
     }
   } catch (error) {
     console.error('Export single image to PDF failed:', error);
-    alert('Gagal mengonversi gambar ke PDF.');
+    alert('Failed to convert image to PDF.');
   } finally {
     isRedacting.value = false;
   }
@@ -429,7 +429,7 @@ const exportMultiImagesAsMergedPdfChoice = async (qualityPreset: QualityPreset =
     }
   } catch (error) {
     console.error('Merged PDF export failed:', error);
-    alert('Gagal menggabungkan gambar ke PDF.');
+    alert('Failed to merge images into PDF.');
   } finally {
     isRedacting.value = false;
   }
@@ -474,7 +474,7 @@ const exportMultiImagesAsZipChoice = async (autoDownload = true, customFilename?
     }
   } catch (error) {
     console.error('ZIP export failed:', error);
-    alert('Gagal membuat arsip ZIP.');
+    alert('Failed to create ZIP archive.');
   } finally {
     isRedacting.value = false;
   }
@@ -585,10 +585,10 @@ const onFileSelect = (event: Event) => {
           <Loader2 class="w-7 h-7 animate-spin text-blue-400" />
         </div>
         <h3 class="text-base font-bold text-white mb-1.5">
-          Menyensor Dokumen
+          Redacting Document
         </h3>
         <p class="text-xs text-gray-300 font-medium leading-relaxed">
-          Memproses penghapusan teks, wajah, dan blok sensitif di memori lokal peramban…
+          Permanently removing sensitive text, faces, and blocked areas in local browser memory…
         </p>
       </div>
     </div>
@@ -605,7 +605,7 @@ const onFileSelect = (event: Event) => {
           Document Ingestion & PII Redaction
         </h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Sensor data pribadi sensitif pada dokumen PDF multi-halaman dan gambar secara instan tanpa mengunggah ke server luar.
+          Instantly redact sensitive personal data on multi-page PDFs and images without uploading to external servers.
         </p>
       </div>
 
@@ -707,17 +707,17 @@ const onFileSelect = (event: Event) => {
           <UploadCloud class="w-8 h-8" />
         </div>
         <h3 class="text-lg sm:text-xl font-bold mb-1.5 text-gray-900 dark:text-white">
-          Tarik & Lepaskan Dokumen di Sini
+          Drag & Drop Documents Here
         </h3>
         <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Mendukung PDF (multi-halaman), JPEG, dan PNG. Bisa unggah banyak gambar sekaligus.
+          Supports multi-page PDFs, JPEG, and PNG. Multiple images can be uploaded together.
         </p>
         
         <button
           type="button"
           class="bg-blue-600 text-white hover:bg-blue-700 px-5 py-2.5 rounded-lg font-semibold text-xs sm:text-sm shadow-sm transition-all"
         >
-          Pilih File Dokumen
+          Select Document Files
         </button>
       </div>
 
@@ -730,10 +730,10 @@ const onFileSelect = (event: Event) => {
         <AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium text-amber-800 dark:text-amber-200">
-            Tidak ada teks yang terdeteksi
+            No text detected
           </p>
           <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-            Coba ganti engine OCR ke Tesseract untuk hasil yang lebih baik pada dokumen ini.
+            Try switching the OCR engine to Tesseract for better results on this document.
           </p>
         </div>
         <button
@@ -742,7 +742,7 @@ const onFileSelect = (event: Event) => {
           class="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors whitespace-nowrap"
         >
           <RotateCcw class="w-3 h-3 inline mr-1" />
-          Coba Tesseract
+          Try Tesseract
         </button>
       </div>
 
@@ -780,10 +780,10 @@ const onFileSelect = (event: Event) => {
           <FileText class="w-6 h-6" />
         </div>
         <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-1.5">
-          Pilih Metode Pemindaian PDF
+          Select PDF Scan Method
         </h3>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
-          PDF ini terdeteksi memiliki banyak gambar atau hasil scan. Silakan tentukan metode pemrosesan yang Anda inginkan:
+          This PDF contains multiple images or appears to be a scanned document. Please choose your preferred processing method:
         </p>
 
         <div class="space-y-3">
@@ -796,10 +796,10 @@ const onFileSelect = (event: Event) => {
             </div>
             <div>
               <div class="font-semibold text-sm text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                Scan Teks PDF (Fast PDF Reader)
+                Native Text Scan (Fast PDF Reader)
               </div>
               <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                Membaca teks digital yang tertanam langsung dari struktur PDF. Sangat cepat dan mempertahankan teks vektor asli.
+                Extracts digital text directly embedded in the PDF structure. Ultra-fast and preserves original vector text positions.
               </div>
             </div>
           </button>
@@ -813,10 +813,10 @@ const onFileSelect = (event: Event) => {
             </div>
             <div>
               <div class="font-semibold text-sm text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400">
-                Scan OCR Tesseract (Visual Scanner)
+                OCR Scan (Visual Scanner)
               </div>
               <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                Merender halaman sebagai gambar dan memindai teks di dalam foto atau dokumen hasil scan fisik.
+                Renders pages as images and performs OCR on photographed or physically scanned documents.
               </div>
             </div>
           </button>

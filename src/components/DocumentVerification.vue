@@ -6,10 +6,10 @@
       <div class="flex items-center gap-2">
         <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.7)]"></span>
         <h2 class="hidden sm:inline text-sm sm:text-base font-bold text-white tracking-tight">
-          Verifikasi & Sensor Dokumen
+          Document Verification &amp; Redaction
         </h2>
         <span class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 font-semibold uppercase tracking-wider">
-          {{ documentType === 'text-pdf' ? 'PDF Teks' : documentType === 'image-pdf' ? 'PDF Scan' : 'Gambar' }}
+          {{ documentType === 'text-pdf' ? 'Text PDF' : documentType === 'image-pdf' ? 'Scanned PDF' : 'Image' }}
         </span>
         <span
           class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex items-center gap-1"
@@ -28,10 +28,10 @@
           type="button"
           @click="$emit('cancel')"
           class="h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 active:scale-95 rounded-lg transition-colors border border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
-          title="Batal dan kembali ke beranda"
+          title="Cancel and return to home"
         >
           <X class="w-4 h-4 text-gray-400" />
-          <span class="hidden xs:inline">Batal</span>
+          <span class="hidden xs:inline">Cancel</span>
         </button>
 
         <!-- Confirm & Export Button -->
@@ -39,10 +39,10 @@
           type="button"
           @click="handleConfirm"
           class="h-8 sm:h-9 px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
-          title="Konfirmasi sensor dan ekspor dokumen"
+          title="Confirm redaction and export document"
         >
           <Check class="w-4 h-4 text-white stroke-[2.5]" />
-          <span>Konfirmasi &amp; Ekspor</span>
+          <span>Confirm &amp; Export</span>
         </button>
       </div>
     </header>
@@ -71,13 +71,13 @@
                 <Loader2 class="w-7 h-7 animate-spin text-blue-400" />
               </div>
               <h3 class="text-base font-bold text-white mb-1.5">
-                Menambahkan Gambar Baru
+                Adding New Images
               </h3>
               <p class="text-xs text-gray-300 font-medium leading-relaxed">
                 {{ addImagesProgressText }}
               </p>
               <div class="mt-4 px-3 py-1.5 rounded-full bg-gray-800/80 border border-gray-700 text-[10px] text-gray-400">
-                Seleksi &amp; sensor pada gambar sebelumnya tetap tersimpan aman
+                Selections &amp; redactions on existing images remain safely preserved
               </div>
             </div>
           </div>
@@ -139,7 +139,7 @@
               <div class="absolute -top-7 left-0 right-0 flex items-center justify-between text-xs text-gray-400 font-medium px-1 pointer-events-none">
                 <div class="flex items-center gap-1.5">
                   <span class="bg-gray-800 text-gray-200 text-[11px] px-2 py-0.5 rounded shadow border border-gray-700">
-                    {{ page.label || `Halaman ${pIdx + 1}` }}
+                    {{ page.label || `Page ${pIdx + 1}` }}
                   </span>
                   <span class="text-[11px] text-gray-400">
                     ({{ page.width }} × {{ page.height }} px)
@@ -152,7 +152,7 @@
                     type="button"
                     @click.stop="rotateSinglePage(page.id)"
                     class="bg-gray-800 hover:bg-gray-700 text-gray-300 p-1 rounded transition-colors border border-gray-700 shadow"
-                    title="Putar halaman ini 90°"
+                    title="Rotate this page 90°"
                   >
                     <RotateCw class="w-3.5 h-3.5" />
                   </button>
@@ -161,7 +161,7 @@
                     type="button"
                     @click.stop="removeSinglePage(page.id)"
                     class="bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded transition-colors border border-red-800 shadow"
-                    title="Hapus gambar ini"
+                    title="Remove this image"
                   >
                     <Trash2 class="w-3.5 h-3.5" />
                   </button>
@@ -218,7 +218,7 @@
                     width: region.w + 'px',
                     height: region.h + 'px'
                   }"
-                  :title="isFaceActive(getFaceId(page.pageIndex, fIdx)) ? 'Klik untuk batal sensor wajah ini' : 'Klik untuk menyensor wajah ini'"
+                  :title="isFaceActive(getFaceId(page.pageIndex, fIdx)) ? 'Click to unredact this face' : 'Click to redact this face'"
                 >
                   <!-- Badge Tag -->
                   <div class="absolute -top-5 left-0 flex items-center gap-1 pointer-events-none">
@@ -226,8 +226,8 @@
                       class="text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow flex items-center gap-1"
                       :class="isFaceActive(getFaceId(page.pageIndex, fIdx)) ? 'bg-purple-600' : 'bg-gray-600'"
                     >
-                      <span>Wajah {{ fIdx + 1 }}</span>
-                      <span v-if="!isFaceActive(getFaceId(page.pageIndex, fIdx))" class="text-[9px] opacity-85">(Dilewati)</span>
+                      <span>Face {{ fIdx + 1 }}</span>
+                      <span v-if="!isFaceActive(getFaceId(page.pageIndex, fIdx))" class="text-[9px] opacity-85">(Skipped)</span>
                     </span>
                   </div>
 
@@ -236,7 +236,7 @@
                     type="button"
                     @click.stop="deleteFaceRegion(page.pageIndex, fIdx)"
                     class="absolute -top-5 right-0 bg-red-600 hover:bg-red-700 text-white p-0.5 rounded text-[9px] shadow hidden group-hover:flex items-center justify-center pointer-events-auto transition-transform active:scale-95"
-                    title="Hapus deteksi wajah ini"
+                    title="Delete this face detection"
                   >
                     <X class="w-3 h-3 stroke-[2.5]" />
                   </button>
@@ -262,7 +262,7 @@
                   class="absolute -top-5 left-0 text-white text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap font-medium shadow"
                   :style="{ backgroundColor: selectedColor === '#ffffff' ? '#4b5563' : selectedColor }"
                 >
-                  Blok Manual
+                  Manual Block
                 </span>
               </div>
 
@@ -306,7 +306,7 @@
                   class="absolute -top-7 left-0 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold text-white shadow-xl whitespace-nowrap flex items-center gap-1.5 pointer-events-none"
                   :class="interactionMode === 'block' ? 'bg-red-600 border border-red-400/50' : 'bg-blue-600 border border-blue-400/50'"
                 >
-                  <span>{{ interactionMode === 'block' ? 'Blok Manual' : 'Scan Area' }}</span>
+                  <span>{{ interactionMode === 'block' ? 'Manual Block' : 'Scan Area' }}</span>
                   <span class="opacity-70">•</span>
                   <span>{{ Math.round(selectionRect.w) }} × {{ Math.round(selectionRect.h) }} px</span>
                 </div>
@@ -324,7 +324,7 @@
                 }"
               >
                 <span class="bg-yellow-500 text-white text-xs px-2.5 py-1 rounded-full animate-pulse font-semibold shadow">
-                  Memindai Teks…
+                  Scanning Text…
                 </span>
               </div>
             </div>
@@ -360,10 +360,10 @@
             <!-- Tool 1: Mode Geser / Pan -->
             <button
               type="button"
-              @click="setInteractionMode('pan', 'Mode Geser / Pan: Navigasi dan geser dokumen dengan bebas')"
-              @mouseenter="setToolInfo('Mode Geser: Navigasi dan geser dokumen dengan bebas')"
+              @click="setInteractionMode('pan', 'Pan Mode: Navigate and move document freely')"
+              @mouseenter="setToolInfo('Pan Mode: Navigate and move document freely')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Mode Geser: Navigasi dan geser dokumen dengan bebas', true)"
+              @pointerdown="setToolInfo('Pan Mode: Navigate and move document freely', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
               :class="interactionMode === 'pan'
@@ -376,10 +376,10 @@
             <!-- Tool 2: Mode Blokir Manual -->
             <button
               type="button"
-              @click="setInteractionMode('block', 'Mode Blokir: Tarik kotak untuk menyensor foto, tanda tangan, atau teks')"
-              @mouseenter="setToolInfo('Mode Blokir: Tarik kotak untuk menyensor foto, tanda tangan, atau teks')"
+              @click="setInteractionMode('block', 'Block Mode: Drag a box to redact photos, signatures, or text')"
+              @mouseenter="setToolInfo('Block Mode: Drag a box to redact photos, signatures, or text')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Mode Blokir: Tarik kotak untuk menyensor foto, tanda tangan, atau teks', true)"
+              @pointerdown="setToolInfo('Block Mode: Drag a box to redact photos, signatures, or text', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
               :class="interactionMode === 'block'
@@ -393,10 +393,10 @@
             <button
               v-if="documentType !== 'text-pdf'"
               type="button"
-              @click="setInteractionMode('scan', 'Mode Scan Area: Tarik kotak pada area buram untuk OCR ulang')"
-              @mouseenter="setToolInfo('Mode Scan: Tarik kotak pada area buram untuk OCR ulang')"
+              @click="setInteractionMode('scan', 'Area Scan Mode: Drag a box over blurry areas to re-run OCR')"
+              @mouseenter="setToolInfo('Area Scan: Drag a box over blurry areas to re-run OCR')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Mode Scan: Tarik kotak pada area buram untuk OCR ulang', true)"
+              @pointerdown="setToolInfo('Area Scan: Drag a box over blurry areas to re-run OCR', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
               :class="interactionMode === 'scan'
@@ -412,9 +412,9 @@
             <button
               type="button"
               @click="rotateAllPagesClockwise"
-              @mouseenter="setToolInfo('Putar Dokumen 90°')"
+              @mouseenter="setToolInfo('Rotate Document 90°')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Putar Dokumen 90°', true)"
+              @pointerdown="setToolInfo('Rotate Document 90°', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-gray-300 hover:bg-gray-800 hover:text-white transition-all relative flex-shrink-0"
             >
@@ -425,9 +425,9 @@
             <button
               type="button"
               @click="toggleFaceDetection"
-              @mouseenter="setToolInfo('Deteksi Wajah Otomatis (MediaPipe AI)')"
+              @mouseenter="setToolInfo('Auto Face Detection (MediaPipe AI)')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Deteksi Wajah Otomatis (MediaPipe AI)', true)"
+              @pointerdown="setToolInfo('Auto Face Detection (MediaPipe AI)', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
               :class="enableFaceDetection
@@ -441,9 +441,9 @@
             <!-- Tool 6: Tambah Gambar (Khusus mode image) -->
             <label
               v-if="documentType === 'image'"
-              @mouseenter="setToolInfo('Tambah Lembar Gambar Baru')"
+              @mouseenter="setToolInfo('Add New Image Page')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Tambah Lembar Gambar Baru', true)"
+              @pointerdown="setToolInfo('Add New Image Page', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-purple-400 hover:bg-purple-900/40 hover:text-purple-300 transition-all cursor-pointer relative flex-shrink-0"
             >
@@ -461,9 +461,9 @@
             <button
               type="button"
               @click="zoomOut"
-              @mouseenter="setToolInfo('Perkecil Tampilan (Zoom Out)')"
+              @mouseenter="setToolInfo('Zoom Out')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Perkecil Tampilan (Zoom Out)', true)"
+              @pointerdown="setToolInfo('Zoom Out', true)"
               @pointerup="clearToolInfoLater"
               class="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center text-gray-300 hover:bg-gray-800 hover:text-white transition-all relative flex-shrink-0"
             >
@@ -474,9 +474,9 @@
             <button
               type="button"
               @click="zoomReset"
-              @mouseenter="setToolInfo('Pas ke Layar (Auto Fit)')"
+              @mouseenter="setToolInfo('Fit to Screen (Auto Fit)')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Pas ke Layar (Auto Fit)', true)"
+              @pointerdown="setToolInfo('Fit to Screen (Auto Fit)', true)"
               @pointerup="clearToolInfoLater"
               class="px-2 h-8 sm:h-9 rounded-full flex items-center justify-center text-xs font-mono font-bold text-gray-200 hover:bg-gray-800 transition-all relative gap-1 flex-shrink-0"
             >
@@ -488,9 +488,9 @@
             <button
               type="button"
               @click="zoomIn"
-              @mouseenter="setToolInfo('Perbesar Tampilan (Zoom In)')"
+              @mouseenter="setToolInfo('Zoom In')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Perbesar Tampilan (Zoom In)', true)"
+              @pointerdown="setToolInfo('Zoom In', true)"
               @pointerup="clearToolInfoLater"
               class="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center text-gray-300 hover:bg-gray-800 hover:text-white transition-all relative flex-shrink-0"
             >
@@ -503,9 +503,9 @@
             <button
               type="button"
               @click="togglePanel"
-              @mouseenter="setToolInfo(isPanelOpen ? 'Sembunyikan Panel Kontrol' : 'Buka Panel Kontrol & Filter')"
+              @mouseenter="setToolInfo(isPanelOpen ? 'Hide Control Panel' : 'Open Control Panel & Filters')"
               @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo(isPanelOpen ? 'Sembunyikan Panel Kontrol' : 'Buka Panel Kontrol & Filter', true)"
+              @pointerdown="setToolInfo(isPanelOpen ? 'Hide Control Panel' : 'Open Control Panel & Filters', true)"
               @pointerup="clearToolInfoLater"
               class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all relative flex-shrink-0"
               :class="isPanelOpen
@@ -523,7 +523,7 @@
         v-if="isPanelOpen"
         class="hidden lg:flex w-2 hover:w-2.5 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-all items-center justify-center flex-shrink-0 z-20 group"
         @pointerdown="startDesktopResize"
-        title="Tarik untuk mengubah lebar panel kontrol"
+        title="Drag to resize control panel width"
       >
         <div class="w-0.5 h-8 bg-gray-600 group-hover:bg-white rounded-full"></div>
       </div>
@@ -543,13 +543,13 @@
           <div class="flex items-center justify-between w-full px-4 text-[11px] text-gray-300 font-semibold">
             <span class="flex items-center gap-1.5">
               <SlidersHorizontal class="w-3.5 h-3.5 text-blue-400" />
-              Panel Pengaturan Sensor
+              Redaction Settings Panel
             </span>
             <button
               type="button"
               @click="isPanelOpen = false"
               class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white"
-              title="Tutup Panel"
+              title="Close Panel"
             >
               <ChevronDown class="w-4 h-4" />
             </button>
@@ -560,13 +560,13 @@
         <div class="hidden lg:flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900 flex-shrink-0">
           <div class="flex items-center gap-1.5 text-xs font-bold text-gray-200">
             <SlidersHorizontal class="w-3.5 h-3.5 text-blue-400" />
-            <span>Pengaturan &amp; Data Sensitif</span>
+            <span>Settings &amp; Sensitive Data</span>
           </div>
           <button
             type="button"
             @click="isPanelOpen = false"
             class="p-1 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
-            title="Sembunyikan Panel Samping"
+            title="Hide Side Panel"
           >
             <PanelRightClose class="w-4 h-4" />
           </button>
@@ -578,7 +578,7 @@
           <!-- Redaction Color Selection -->
           <div class="border-b border-gray-800 pb-3.5">
             <label class="block text-xs font-semibold text-gray-300 mb-2">
-              Warna Sensor / Penghalang:
+              Redaction Color / Mask:
             </label>
             <div class="flex items-center gap-2">
               <button
@@ -609,16 +609,16 @@
                   class="rounded border-gray-700 bg-gray-800 text-purple-600 focus:ring-purple-500 w-4 h-4"
                 />
                 <span class="text-xs sm:text-sm font-semibold text-gray-200">
-                  Deteksi Wajah Otomatis
+                  Automatic Face Detection
                 </span>
               </div>
               <span v-if="isScanningFaces" class="text-xs text-purple-400 animate-pulse font-medium flex items-center gap-1">
                 <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                Memindai…
+                Scanning…
               </span>
             </label>
             <p class="text-[11px] text-gray-400 mt-1">
-              Pindai foto wajah atau pasfoto pada dokumen dan tandai untuk disensor.
+              Scan portraits or ID photos on documents and mark them for redaction.
             </p>
           </div>
 
@@ -628,7 +628,7 @@
               <div class="flex items-center gap-1.5">
                 <UserCheck class="w-3.5 h-3.5 text-purple-400" />
                 <h3 class="font-semibold text-xs text-gray-200 uppercase tracking-wider">
-                  Wajah Terdeteksi ({{ activeFaceCount }}/{{ allFaceRegionsWithIds.length }})
+                  Detected Faces ({{ activeFaceCount }}/{{ allFaceRegionsWithIds.length }})
                 </h3>
               </div>
               <div class="flex items-center gap-1.5 text-[11px]">
@@ -636,13 +636,13 @@
                   type="button"
                   class="text-purple-400 hover:underline font-medium"
                   @click="selectAllFaces"
-                >Semua</button>
+                >All</button>
                 <span class="text-gray-600">|</span>
                 <button
                   type="button"
                   class="text-gray-400 hover:underline font-medium"
                   @click="deselectAllFaces"
-                >Batal</button>
+                >Deselect</button>
               </div>
             </div>
 
@@ -667,10 +667,10 @@
                       class="text-xs font-semibold block truncate"
                       :class="isFaceActive(item.id) ? 'text-purple-200' : 'text-gray-400'"
                     >
-                      Wajah {{ item.indexInPage + 1 }}
+                      Face {{ item.indexInPage + 1 }}
                     </span>
                     <span class="text-[10px] text-gray-400 block truncate">
-                      Halaman {{ item.pageIndex }} • {{ Math.round(item.w) }} × {{ Math.round(item.h) }} px
+                      Page {{ item.pageIndex }} • {{ Math.round(item.w) }} × {{ Math.round(item.h) }} px
                     </span>
                   </div>
                 </label>
@@ -679,7 +679,7 @@
                   type="button"
                   @click.stop="deleteFaceRegion(item.pageIndex, item.indexInPage)"
                   class="text-gray-500 hover:text-red-400 p-1 rounded transition-colors ml-2 flex-shrink-0"
-                  title="Hapus deteksi wajah ini"
+                  title="Delete this face detection"
                 >
                   <Trash2 class="w-3.5 h-3.5" />
                 </button>
@@ -691,24 +691,24 @@
           <div class="flex flex-col border-b border-gray-800 pb-3.5">
             <div class="flex items-center justify-between mb-2">
               <h3 class="font-semibold text-xs text-gray-200 uppercase tracking-wider">
-                Pola Sensitif Terdeteksi
+                Detected Sensitive Patterns
               </h3>
               <div class="flex items-center gap-1.5 text-[11px]" v-if="foundSensitiveKeywords.length > 0">
                 <button
                   class="text-blue-400 hover:underline font-medium"
                   @click="selectAllKeywords"
-                >Semua</button>
+                >All</button>
                 <span class="text-gray-600">|</span>
                 <button
                   class="text-gray-400 hover:underline font-medium"
                   @click="deselectAllKeywords"
-                >Batal</button>
+                >Deselect</button>
               </div>
             </div>
 
             <p class="text-[10px] text-gray-400 mb-2 flex items-center gap-3" v-if="analysisMatches.length > 0">
-              <span class="text-red-400 font-medium">● Otomatis: {{ autoRedactCount }}</span>
-              <span class="text-amber-400 font-medium">● Perlu review: {{ reviewNeededCount }}</span>
+              <span class="text-red-400 font-medium">● Auto: {{ autoRedactCount }}</span>
+              <span class="text-amber-400 font-medium">● Review needed: {{ reviewNeededCount }}</span>
             </p>
 
             <div v-if="foundSensitiveKeywords.length > 0" class="space-y-1.5 max-h-44 overflow-y-auto pr-1 custom-dark-scrollbar">
@@ -734,14 +734,14 @@
                   </div>
                 </div>
                 <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 font-bold ml-2 border border-blue-800/40">
-                  {{ item.count }} kata
+                  {{ item.count }} words
                 </span>
               </label>
             </div>
 
             <div v-else class="p-3 bg-gray-850/50 rounded-md border border-dashed border-gray-800 text-center">
               <p class="text-xs text-gray-400">
-                Tidak ada pola sensitif otomatis (NIK, Telepon, Email, Tanggal) yang terdeteksi.
+                No automatic sensitive patterns (ID, Phone, Email, Date) detected.
               </p>
             </div>
           </div>
@@ -752,7 +752,7 @@
               <div class="flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                 <h3 class="font-semibold text-xs text-gray-200 uppercase tracking-wider">
-                  Kata Pilihan Manual ({{ manualSelectedWordsList.length }})
+                  Manually Selected Words ({{ manualSelectedWordsList.length }})
                 </h3>
               </div>
               <button
@@ -760,7 +760,7 @@
                 class="text-[11px] text-red-400 hover:underline font-medium"
                 @click="clearAllManualSelectedWords"
               >
-                Hapus Semua
+                Clear All
               </button>
             </div>
 
@@ -780,7 +780,7 @@
                   type="button"
                   @click.stop="removeManualSelectedWord(item.indices)"
                   class="text-red-400 hover:text-red-300 p-0.5 rounded transition-colors"
-                  title="Batal sensor kata ini"
+                  title="Unredact this word"
                 >
                   <X class="w-3 h-3 stroke-[2.5]" />
                 </button>
@@ -791,12 +791,12 @@
           <!-- Custom Keyword Search & Auto Redact -->
           <div>
             <label class="block text-xs font-semibold text-gray-300 mb-1.5">
-              Cari Kata atau kata kunci:
+              Search Keyword or Custom Text:
             </label>
             <input
               v-model="customPiiText"
               type="text"
-              placeholder="Ketik teks yang ingin disensor..."
+              placeholder="Type text to redact..."
               class="block w-full rounded-md border-gray-700 bg-gray-800 text-white placeholder-gray-500 text-xs px-3 py-2 border outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
             />
           </div>
@@ -804,24 +804,24 @@
           <!-- Stats Summary -->
           <div class="text-[11px] text-gray-400 space-y-1.5 pt-2 border-t border-gray-800">
             <div class="flex justify-between">
-              <span>Total Lembar / Halaman:</span>
+              <span>Total Pages / Sheets:</span>
               <span class="font-medium text-gray-200">{{ localPages.length }}</span>
             </div>
             <div class="flex justify-between">
-              <span>Total Kata Terdeteksi:</span>
+              <span>Total Words Detected:</span>
               <span class="font-medium text-gray-200">{{ editableWords.length }}</span>
             </div>
             <div class="flex justify-between">
-              <span>Kata yang Disensor:</span>
-              <span class="font-medium text-red-400">{{ totalRedactedWordsCount }} kata</span>
+              <span>Redacted Words:</span>
+              <span class="font-medium text-red-400">{{ totalRedactedWordsCount }} words</span>
             </div>
             <div class="flex justify-between" v-if="allManualRegions.length > 0">
-              <span>Blok Manual:</span>
-              <span class="font-medium text-red-400">{{ allManualRegions.length }} area</span>
+              <span>Manual Blocks:</span>
+              <span class="font-medium text-red-400">{{ allManualRegions.length }} areas</span>
             </div>
             <div class="flex justify-between" v-if="enableFaceDetection && allFaceRegionsWithIds.length > 0">
-              <span>Wajah Terdeteksi:</span>
-              <span class="font-medium text-purple-400">{{ activeFaceCount }} / {{ allFaceRegionsWithIds.length }} wajah</span>
+              <span>Detected Faces:</span>
+              <span class="font-medium text-purple-400">{{ activeFaceCount }} / {{ allFaceRegionsWithIds.length }} faces</span>
             </div>
           </div>
 
@@ -1054,7 +1054,7 @@ const panelStyle = computed(() => {
 });
 function togglePanel() {
   isPanelOpen.value = !isPanelOpen.value;
-  setToolInfo(isPanelOpen.value ? 'Panel Pengaturan Terbuka' : 'Panel Ditutup (Layar Kanvas Maksimal)');
+  setToolInfo(isPanelOpen.value ? 'Settings Panel Opened' : 'Panel Closed (Max Canvas View)');
   nextTick(() => {
     zoomReset();
   });
@@ -1131,11 +1131,11 @@ const scanRect = ref<{ x: number; y: number; w: number; h: number } | null>(null
 
 // --- Redaction Color Palette ---
 const colorPalette = [
-  { label: 'Hitam', value: '#000000' },
-  { label: 'Putih', value: '#ffffff' },
-  { label: 'Abu-abu', value: '#374151' },
+  { label: 'Black', value: '#000000' },
+  { label: 'White', value: '#ffffff' },
+  { label: 'Gray', value: '#374151' },
   { label: 'Navy', value: '#1e3a8a' },
-  { label: 'Merah', value: '#b91c1c' },
+  { label: 'Red', value: '#b91c1c' },
 ];
 const selectedColor = ref<string>('#000000');
 
@@ -1162,17 +1162,17 @@ function toggleFaceSelection(faceId: string) {
   const next = new Set(disabledFaceIds.value);
   if (next.has(faceId)) {
     next.delete(faceId);
-    setToolInfo('Wajah diaktifkan untuk disensor');
+    setToolInfo('Face marked for redaction');
   } else {
     next.add(faceId);
-    setToolInfo('Sensor wajah dibatalkan (dilewati)');
+    setToolInfo('Face redaction skipped');
   }
   disabledFaceIds.value = next;
 }
 
 function selectAllFaces() {
   disabledFaceIds.value = new Set();
-  setToolInfo('Semua wajah diaktifkan untuk disensor');
+  setToolInfo('All faces marked for redaction');
 }
 
 function deselectAllFaces() {
@@ -1181,14 +1181,14 @@ function deselectAllFaces() {
     allIds.add(f.id);
   });
   disabledFaceIds.value = allIds;
-  setToolInfo('Semua sensor wajah dibatalkan');
+  setToolInfo('All face redactions skipped');
 }
 
 function deleteFaceRegion(pageIndex: number, faceIndex: number) {
   const page = localPages.value.find((p) => p.pageIndex === pageIndex);
   if (page && page.faceRegions && page.faceRegions[faceIndex]) {
     page.faceRegions.splice(faceIndex, 1);
-    setToolInfo('Deteksi wajah dihapus');
+    setToolInfo('Face detection deleted');
   }
 }
 
@@ -1349,7 +1349,7 @@ watch(
         {
           id: 'page-1',
           pageIndex: 1,
-          label: 'Halaman 1',
+          label: 'Page 1',
           type: 'image',
           previewUrl: props.imageUrl,
           width: 800,
@@ -1474,7 +1474,7 @@ function removeManualSelectedWord(indices: number[]) {
 
   manuallyRedactedIndices.value = nextManual;
   unredactedIndices.value = nextUnredacted;
-  showStatus('Kata pilihan manual dibatalkan.', 'info');
+  showStatus('Manual word selection removed.', 'info');
 }
 
 function clearAllManualSelectedWords() {
@@ -1485,7 +1485,7 @@ function clearAllManualSelectedWords() {
 
   unredactedIndices.value = nextUnredacted;
   manuallyRedactedIndices.value = new Set();
-  showStatus('Semua pilihan kata manual dibersihkan.', 'info');
+  showStatus('All manual word selections cleared.', 'info');
 }
 
 // --- Zoom & Auto-Fit Navigation ---
@@ -1550,7 +1550,7 @@ function zoomReset() {
   
   const targetScale = Math.min(scaleW, scaleH > 0.3 ? scaleH : scaleW);
   zoomLevel.value = Math.min(1.2, Math.max(ZOOM_MIN, +targetScale.toFixed(2)));
-  setToolInfo(`Pas Layar (${Math.round(zoomLevel.value * 100)}%)`);
+  setToolInfo(`Fit to Screen (${Math.round(zoomLevel.value * 100)}%)`);
   nextTick(() => {
     if (scrollContainer.value) {
       scrollContainer.value.scrollLeft = 0;
@@ -1618,7 +1618,7 @@ function rotateSinglePage(pageId: string) {
   const page = localPages.value.find((p) => p.id === pageId);
   if (page) {
     rotatePageCoords(page);
-    setToolInfo(`${page.label} diputar 90°`);
+    setToolInfo(`${page.label} rotated 90°`);
   }
 }
 
@@ -1626,7 +1626,7 @@ function rotateAllPagesClockwise() {
   localPages.value.forEach((page) => {
     rotatePageCoords(page);
   });
-  setToolInfo('Semua halaman diputar 90°');
+  setToolInfo('All pages rotated 90°');
 }
 
 function removeSinglePage(pageId: string) {
@@ -1634,7 +1634,7 @@ function removeSinglePage(pageId: string) {
   if (idx >= 0) {
     const removed = localPages.value.splice(idx, 1)[0];
     syncEditableWords();
-    showStatus(`${removed.label} telah dihapus.`, 'info');
+    showStatus(`${removed.label} has been deleted.`, 'info');
   }
 }
 
@@ -1646,13 +1646,13 @@ async function handleAdditionalFilesSelect(e: Event) {
   target.value = '';
 
   isAddingImages.value = true;
-  addImagesProgressText.value = `Memproses 1 dari ${fileList.length} gambar...`;
-  setToolInfo(`Menambahkan ${fileList.length} gambar baru...`, true);
+  addImagesProgressText.value = `Processing 1 of ${fileList.length} images...`;
+  setToolInfo(`Adding ${fileList.length} new images...`, true);
 
   try {
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      addImagesProgressText.value = `Mengekstrak teks gambar ${i + 1} dari ${fileList.length} (${file.name})...`;
+      addImagesProgressText.value = `Extracting text from image ${i + 1} of ${fileList.length} (${file.name})...`;
 
       // 1. Load image natural dimensions & preview URL
       const objectUrl = URL.createObjectURL(file);
@@ -1677,7 +1677,7 @@ async function handleAdditionalFilesSelect(e: Event) {
       // 3. Run Face Detection automatically if enabled on new image
       let newFaceRegions: DetectedRegion[] = [];
       if (enableFaceDetection.value) {
-        addImagesProgressText.value = `Mendeteksi wajah pada gambar ${i + 1} dari ${fileList.length}...`;
+        addImagesProgressText.value = `Detecting faces on image ${i + 1} of ${fileList.length}...`;
         try {
           newFaceRegions = await detectFaces(img);
         } catch (err) {
@@ -1689,7 +1689,7 @@ async function handleAdditionalFilesSelect(e: Event) {
       const newPage: DocumentPageItem = {
         id: `img-${newPageIndex}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         pageIndex: newPageIndex,
-        label: `Gambar ${newPageIndex} (${file.name})`,
+        label: `Image ${newPageIndex} (${file.name})`,
         type: 'image',
         sourceBlob: file,
         previewUrl: objectUrl,
@@ -1719,12 +1719,12 @@ async function handleAdditionalFilesSelect(e: Event) {
       });
     }
 
-    setToolInfo(`Berhasil menambahkan ${fileList.length} gambar baru!`);
-    showStatus(`${fileList.length} gambar baru berhasil ditambahkan tanpa menghilangkan seleksi sebelumnya.`, 'success');
+    setToolInfo(`Successfully added ${fileList.length} new images!`);
+    showStatus(`${fileList.length} new images added without resetting existing selections.`, 'success');
   } catch (error: any) {
     console.error('Error adding images:', error);
-    setToolInfo('Gagal menambahkan gambar');
-    showStatus('Gagal memproses gambar tambahan: ' + (error?.message || error), 'error');
+    setToolInfo('Failed to add images');
+    showStatus('Failed to process added images: ' + (error?.message || error), 'error');
   } finally {
     isAddingImages.value = false;
   }
@@ -1740,7 +1740,7 @@ async function handleFaceDetectionToggle() {
   if (enableFaceDetection.value) {
     if (allFaceRegionsWithIds.value.length === 0) {
       isScanningFaces.value = true;
-      setToolInfo('Memindai wajah dengan AI…', true);
+      setToolInfo('Detecting faces with AI…', true);
       try {
         for (const page of localPages.value) {
           const img = new Image();
@@ -1755,21 +1755,21 @@ async function handleFaceDetectionToggle() {
         disabledFaceIds.value.clear();
         const totalFaces = allFaceRegionsWithIds.value.length;
         if (totalFaces > 0) {
-          setToolInfo(`Ditemukan ${totalFaces} wajah pada dokumen`);
+          setToolInfo(`Found ${totalFaces} faces on document`);
         } else {
-          setToolInfo('Tidak ditemukan wajah pada dokumen');
+          setToolInfo('No faces detected on document');
         }
       } catch (err) {
-        setToolInfo('Gagal menjalankan deteksi wajah');
+        setToolInfo('Face detection failed');
       } finally {
         isScanningFaces.value = false;
       }
     } else {
       disabledFaceIds.value.clear();
-      setToolInfo('Deteksi wajah diaktifkan');
+      setToolInfo('Face detection enabled');
     }
   } else {
-    setToolInfo('Deteksi wajah dinonaktifkan');
+    setToolInfo('Face detection disabled');
   }
 }
 
@@ -1923,7 +1923,7 @@ async function onContainerPointerUp(e: PointerEvent) {
       } else {
         if (!page.manualRegions) page.manualRegions = [];
         page.manualRegions.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
-        setToolInfo('Area berhasil diblokir manual');
+        setToolInfo('Area manually redacted');
       }
     }
   }
@@ -2017,7 +2017,7 @@ function handleTapOnPage(page: DocumentPageItem, coords: { x: number; y: number 
       coords.y <= r.y + r.h + manualPadding
     ) {
       page.manualRegions.splice(i, 1);
-      setToolInfo('Blok manual dihapus');
+      setToolInfo('Manual block deleted');
       return;
     }
   }
@@ -2049,7 +2049,7 @@ function handleTapOnPage(page: DocumentPageItem, coords: { x: number; y: number 
   if (matchedWord) {
     toggleWord(matchedWord.globalIndex);
     const isRedactedNow = isWordRedacted(matchedWord.globalIndex, matchedWord);
-    setToolInfo(isRedactedNow ? `Menyensor "${matchedWord.text}"` : `Batal sensor "${matchedWord.text}"`);
+    setToolInfo(isRedactedNow ? `Redacting "${matchedWord.text}"` : `Unredacting "${matchedWord.text}"`);
     return;
   }
 }
@@ -2061,14 +2061,14 @@ async function runPageRegionScan(
   isReScanning.value = true;
   scanPageId.value = page.id;
   scanRect.value = rect;
-  setToolInfo('Memindai teks pada area pilihan…', true);
+  setToolInfo('Scanning text on selected area…', true);
 
   try {
     const pageExistingWords = getWordsForPage(page.pageIndex);
     const newWords = await processRegion(page.previewUrl, rect, pageExistingWords);
 
     if (newWords.length === 0) {
-      setToolInfo('Tidak ditemukan teks tambahan pada area ini');
+      setToolInfo('No additional text found in this area');
       return;
     }
 
@@ -2083,7 +2083,7 @@ async function runPageRegionScan(
     });
 
     if (uniqueWords.length === 0) {
-      setToolInfo('Teks pada area ini sudah terdata');
+      setToolInfo('Text in this area already recorded');
       return;
     }
 
@@ -2092,10 +2092,10 @@ async function runPageRegionScan(
     page.words.push(...uniqueWords.map((w) => ({ ...w, pageIndex: page.pageIndex })));
 
     syncEditableWords();
-    setToolInfo(`Berhasil mengekstrak ${uniqueWords.length} kata baru!`);
+    setToolInfo(`Extracted ${uniqueWords.length} new words!`);
   } catch (error) {
     console.error('Region scan failed:', error);
-    setToolInfo('Gagal memindai area');
+    setToolInfo('Failed to scan area');
   } finally {
     isReScanning.value = false;
     scanPageId.value = null;

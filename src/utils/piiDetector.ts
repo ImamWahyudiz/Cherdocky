@@ -28,17 +28,17 @@ export interface PiiCategoryMeta {
 }
 
 export const PII_CATEGORIES: PiiCategoryMeta[] = [
-  { type: 'nik', label: 'NIK (KTP / KK)', description: 'Nomor Induk Kependudukan 16 digit' },
-  { type: 'phone', label: 'Nomor Telepon', description: 'Nomor HP (08xx, +62) atau telepon rumah' },
-  { type: 'email', label: 'Alamat Email', description: 'Format email standar' },
-  { type: 'dob', label: 'Tanggal / Tgl Lahir', description: 'Format tanggal DD/MM/YYYY atau nama bulan' },
-  { type: 'ttl', label: 'Tempat, Tanggal Lahir', description: 'Format Kota, Tanggal' },
-  { type: 'npwp', label: 'NPWP / Pajak', description: 'Nomor Pokok Wajib Pajak 15/16 digit' },
-  { type: 'bpjs', label: 'BPJS / KIS', description: 'Nomor BPJS 13 digit' },
-  { type: 'bank', label: 'Nomor Rekening Bank', description: 'Nomor rekening 10-16 digit' },
-  { type: 'id', label: 'Paspor / SIM / ID', description: 'Nomor Paspor atau identitas resmi' },
-  { type: 'name', label: 'Nama', description: 'Nama berdasarkan kedekatan label' },
-  { type: 'address', label: 'Alamat', description: 'Alamat berdasarkan kedekatan label' },
+  { type: 'nik', label: 'NIK (ID / Family Card)', description: '16-digit National Identification Number' },
+  { type: 'phone', label: 'Phone Number', description: 'Mobile (+62, 08xx) or landline phone number' },
+  { type: 'email', label: 'Email Address', description: 'Standard email address format' },
+  { type: 'dob', label: 'Date of Birth', description: 'Date format DD/MM/YYYY or month name' },
+  { type: 'ttl', label: 'Place, Date of Birth', description: 'City, Date of birth format' },
+  { type: 'npwp', label: 'Tax ID (NPWP)', description: '15/16-digit Taxpayer Identification Number' },
+  { type: 'bpjs', label: 'Health Insurance (BPJS / KIS)', description: '13-digit Health / Social Security ID' },
+  { type: 'bank', label: 'Bank Account Number', description: '10-16 digit bank account number' },
+  { type: 'id', label: 'Passport / License / ID', description: 'Passport or government ID number' },
+  { type: 'name', label: 'Name', description: 'Name based on contextual label proximity' },
+  { type: 'address', label: 'Address', description: 'Address based on contextual label proximity' },
 ];
 
 const ALL_TYPES: PIIType[] = PII_CATEGORIES.map((c) => c.type);

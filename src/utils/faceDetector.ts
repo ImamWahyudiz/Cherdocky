@@ -228,7 +228,7 @@ export async function detectFaces(
     const imgW = imageSource.width || 1;
     const imgH = imageSource.height || 1;
 
-    onProgress?.('Mendeteksi wajah pada dokumen…');
+    onProgress?.('Detecting faces on document…');
 
     const candidateBoxes: CandidateBox[] = [];
 
