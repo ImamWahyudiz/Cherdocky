@@ -146,7 +146,7 @@ Deep-dive documentation for developers — engine internals, real-world debuggin
 
 ## User Guide
 
-1. **Upload Document**: Drop an image file (JPG, PNG, WebP) or a PDF document.
+1. **Upload Document**: Drop an image file (JPG, PNG, WebP) or a PDF document (wether text or scanned type).
 2. **Select Mode (PDF Only)**: Choose between Native Text Mode (for digital PDFs) or OCR Scan Mode (for scanned documents).
 3. **Review & Fine-Tune**: Inspect automatically detected sensitive words and faces. Use click-to-toggle or drag manual blocks over additional areas (such as signatures or seals).
 4. **Export**: Click the Confirm & Export button and select your preferred output format and quality (Flat PDF, Image, or ZIP).

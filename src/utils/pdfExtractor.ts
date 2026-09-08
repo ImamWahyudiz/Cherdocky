@@ -34,8 +34,9 @@ function getMeasureContext(): CanvasRenderingContext2D | null {
 
 /**
  * Accurately calculates proportional character widths for any font.
- * Prevents horizontal drift across narrow ('i', 'l', 't') and wide ('M', 'W', 's', 'p') characters.
- */
+* Prevents horizontal drift across narrow ('i', 'l', 't') and wide ('M', 'W', 's', 'p') characters.
+  * Uses cumulative string measurements to capture kerning/ligatures correctly.
+  */
 function getAccurateCharWidths(
   text: string,
   totalWidth: number,
@@ -49,16 +50,25 @@ function getAccurateCharWidths(
   const ctx = getMeasureContext();
   if (ctx) {
     ctx.font = `${fontSize}px ${fontName || 'sans-serif'}, Arial, Helvetica, sans-serif`;
-    const measured: number[] = new Array(len);
-    let totalMeasured = 0;
 
+    // Measure cumulative width at each character position — this naturally
+    // includes kerning/ligature effects because measureText("He") + measureText("ello")
+    // != measureText("Hello") in many fonts. Differences between successive
+    // cumulative measurements give the true advance width of each character.
+    const cumulative = new Array(len + 1);
+    cumulative[0] = 0;
     for (let i = 0; i < len; i++) {
-      const char = text[i];
-      const w = char === ' ' ? ctx.measureText(' ').width || fontSize * 0.28 : ctx.measureText(char).width;
-      measured[i] = Math.max(w, 0.5);
-      totalMeasured += measured[i];
+      cumulative[i + 1] = ctx.measureText(text.slice(0, i + 1)).width;
     }
 
+    const measured = new Array(len);
+    for (let i = 0; i < len; i++) {
+      // Advance width = cumulative[i+1] - cumulative[i] — includes any
+      // kerning adjustments between char i and i+1.
+      measured[i] = Math.max(cumulative[i + 1] - cumulative[i], 0.5);
+    }
+
+    const totalMeasured = cumulative[len];
     if (totalMeasured > 0) {
       const scale = totalWidth / totalMeasured;
       return measured.map((w) => w * scale);
@@ -194,14 +204,16 @@ export async function extractAllPdfText(
       // Baseline sits at `line.baselineY`.
       // Ascender / Cap-height is approx 0.80 of font height.
       // Descender is approx 0.20 of font height.
-      const topY = line.baselineY - line.fontHeight * 0.82;
-      const totalHeight = line.fontHeight * 1.08;
+      const topY = line.baselineY - line.fontHeight * 0.85;
+      const totalHeight = line.fontHeight * 1.15;
 
       // Proportional character metrics for the merged run (width includes
       // inter-fragment gaps so characters map back proportionally).
       const charWidths = getAccurateCharWidths(line.str, line.width, 'sans-serif', line.fontHeight);
 
-      const tokens = line.str.split(/(\s+)/);
+      // Split on whitespace and standard sentence punctuation so words like "Hello,"
+      // become two separate tokens ["Hello", ","] — selecting "Hello" won't include the comma.
+      const tokens = line.str.split(/(\s+|[,.;:!?])/g);
       let charIndex = 0;
 
       for (const token of tokens) {
@@ -225,13 +237,15 @@ export async function extractAllPdfText(
             wordWidth += charWidths[c] || 0;
           }
 
-          // Ignore isolated noise punctuation like purely '-', '_', '~', '—', '|'
-          const isPurePunctuation = /^[-_~—|•*#:=;,.\\/]+$/.test(trimmed);
-          if (!isPurePunctuation) {
-            // Add a slight 1.5px horizontal and 1px vertical safety margin
-            // so the blocker box cleanly covers all glyph edges without cutting off serifs or letters
-            const padX = 1.5;
-            const padY = 1.0;
+          // Skip decorative / noise-only punctuation. Standard sentence punctuation
+          // (, . ; : ! ?) is kept as separate selectable tokens so users can select
+          // words independently from their trailing/leading punctuation.
+          const isNoisePunctuation = /^[-_~—|•*#:=\\/]+$/.test(trimmed);
+          if (!isNoisePunctuation) {
+            // Minimal 1px padding — tight fit so selection doesn't visually include
+            // adjacent space or punctuation. Box is positioned at exact char boundaries.
+            const padX = 1;
+            const padY = 2;
 
             spatialWords.push({
               text: trimmed,

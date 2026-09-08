@@ -1498,21 +1498,38 @@ function applyZoom(nextZoom: number, anchorClientX?: number, anchorClientY?: num
 
   const container = scrollContainer.value;
   const oldZoom = zoomLevel.value;
-  const containerRect = container.getBoundingClientRect();
 
-  // Anchor point relative to viewport
-  const ax = anchorClientX !== undefined ? (anchorClientX - containerRect.left) : (container.clientWidth / 2);
-  const ay = anchorClientY !== undefined ? (anchorClientY - containerRect.top) : (container.clientHeight / 2);
+  // The scrollable content is the first child (m-auto wrapper). Use its actual
+  // viewport position to compute the cursor offset from the content origin.
+  // This correctly accounts for container padding AND auto margins from m-auto.
+  const wrapper = container.firstElementChild as HTMLElement | null;
+  if (!wrapper) {
+    zoomLevel.value = boundedZoom;
+    return;
+  }
 
-  // Content coordinates before zoom
-  const contentX = (container.scrollLeft + ax) / oldZoom;
-  const contentY = (container.scrollTop + ay) / oldZoom;
+  const wrapperRect = wrapper.getBoundingClientRect();
+
+  const ax = anchorClientX !== undefined ? anchorClientX - wrapperRect.left : wrapper.clientWidth / 2;
+  const ay = anchorClientY !== undefined ? anchorClientY - wrapperRect.top : wrapper.clientHeight / 2;
+
+  // Content coordinates in unscaled space (cursor offset from wrapper origin / zoom)
+  const contentX = ax / oldZoom;
+  const contentY = ay / oldZoom;
 
   zoomLevel.value = boundedZoom;
 
   nextTick(() => {
-    container.scrollLeft = Math.max(0, contentX * boundedZoom - ax);
-    container.scrollTop = Math.max(0, contentY * boundedZoom - ay);
+    const newWrapperRect = wrapper.getBoundingClientRect();
+    const wrapLeft0 = newWrapperRect.left + container.scrollLeft;
+    const wrapTop0 = newWrapperRect.top + container.scrollTop;
+
+    // We want the same unscaled content position to be under the cursor after zoom:
+    // wrapper_left_in_viewport + contentX * newZoom = anchorClientX
+    // => (wrapLeft0 - newScrollLeft) + contentX * newZoom = anchorClientX
+    // => newScrollLeft = wrapLeft0 + contentX * newZoom - anchorClientX
+    container.scrollLeft = Math.max(0, wrapLeft0 + contentX * boundedZoom - anchorClientX);
+    container.scrollTop = Math.max(0, wrapTop0 + contentY * boundedZoom - anchorClientY);
   });
 }
 
