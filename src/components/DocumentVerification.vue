@@ -1509,9 +1509,11 @@ function applyZoom(nextZoom: number, anchorClientX?: number, anchorClientY?: num
   }
 
   const wrapperRect = wrapper.getBoundingClientRect();
+  const anchorX = anchorClientX ?? wrapperRect.left + wrapper.clientWidth / 2;
+  const anchorY = anchorClientY ?? wrapperRect.top + wrapper.clientHeight / 2;
 
-  const ax = anchorClientX !== undefined ? anchorClientX - wrapperRect.left : wrapper.clientWidth / 2;
-  const ay = anchorClientY !== undefined ? anchorClientY - wrapperRect.top : wrapper.clientHeight / 2;
+  const ax = anchorX - wrapperRect.left;
+  const ay = anchorY - wrapperRect.top;
 
   // Content coordinates in unscaled space (cursor offset from wrapper origin / zoom)
   const contentX = ax / oldZoom;
@@ -1528,8 +1530,8 @@ function applyZoom(nextZoom: number, anchorClientX?: number, anchorClientY?: num
     // wrapper_left_in_viewport + contentX * newZoom = anchorClientX
     // => (wrapLeft0 - newScrollLeft) + contentX * newZoom = anchorClientX
     // => newScrollLeft = wrapLeft0 + contentX * newZoom - anchorClientX
-    container.scrollLeft = Math.max(0, wrapLeft0 + contentX * boundedZoom - anchorClientX);
-    container.scrollTop = Math.max(0, wrapTop0 + contentY * boundedZoom - anchorClientY);
+    container.scrollLeft = Math.max(0, wrapLeft0 + contentX * boundedZoom - anchorX);
+    container.scrollTop = Math.max(0, wrapTop0 + contentY * boundedZoom - anchorY);
   });
 }
 
