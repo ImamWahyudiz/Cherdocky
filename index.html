@@ -5,33 +5,63 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f172a" />
-    <title>Cherdocky — Offline PII Auto-Redactor</title>
+    <title>Cherdocky — 100% Offline PII Auto-Redactor & Document Privacy</title>
     <meta
       name="description"
-      content="Cherdocky automatically redacts sensitive personal data (national ID, phone numbers, emails, faces) directly in your browser. 100% offline, zero file upload, complete privacy."
+      content="Secure, 100% client-side document redaction. Automatically detect and redact sensitive personal data (national ID, phone numbers, emails, addresses, faces) directly in your browser with zero server uploads."
     />
-    <meta name="keywords" content="PII redactor, document redaction, ID card redaction, document anonymization, offline redactor, privacy" />
+    <meta name="keywords" content="PII redactor, document redaction, ID card redaction, document anonymization, offline redactor, privacy, KTP sensor, NIK anonymizer, face blur, client-side OCR" />
     <meta name="author" content="Cherdocky" />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://cherdocky.example/" />
+    <link rel="canonical" href="https://cherdocky.vercel.app/" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://cherdocky.vercel.app/" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:site_name" content="Cherdocky" />
     <meta property="og:title" content="Cherdocky — Offline PII Auto-Redactor" />
     <meta
       property="og:description"
-      content="Automatically redact IDs, phone numbers, emails, and faces directly in your browser. Zero file uploads, 100% private."
+      content="Automatically and securely redact IDs, phone numbers, emails, and faces directly in your browser. Zero file uploads, 100% client-side private."
     />
+    <meta property="og:image" content="https://cherdocky.vercel.app/workflow_flowchart.svg" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://cherdocky.vercel.app/" />
     <meta name="twitter:title" content="Cherdocky — Offline PII Auto-Redactor" />
     <meta
       name="twitter:description"
-      content="Automatically and privately redact documents containing sensitive personal data directly in your browser."
+      content="Automatically and securely redact IDs, phone numbers, emails, and faces directly in your browser. Zero file uploads, 100% client-side private."
     />
+    <meta name="twitter:image" content="https://cherdocky.vercel.app/workflow_flowchart.svg" />
+
+    <!-- Schema.org JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Cherdocky",
+      "url": "https://cherdocky.vercel.app/",
+      "description": "100% offline-first browser-based PII auto-redaction and document anonymization tool.",
+      "applicationCategory": "SecurityApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires WebAssembly support",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "100% Client-Side Privacy",
+        "Zero Server Uploads",
+        "Automated PII and NIK Detection",
+        "On-Device Face Blurring",
+        "High Resolution PDF & Image Export"
+      ]
+    }
+    </script>
   </head>
   <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased min-h-screen">
     <div id="app"></div>

@@ -34,11 +34,16 @@ Thumbs.db
 
 # TypeScript build info
 *.tsbuildinfo
+vite.config.js
 .data
 .nuxt
 .nitro
 .cache
 .output
+.vercel
+
+# Logs
+error.log
 
 # Antigravity / AI IDE artifacts
 .agents
