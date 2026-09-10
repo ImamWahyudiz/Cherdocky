@@ -203,16 +203,27 @@ export class OnnxEngine {
         const tokens = text.split(/\s+/).filter(t => t.length > 0);
         if (tokens.length === 0) continue;
 
-        // Proportional x-position by character count within the line
-        const totalChars = tokens.reduce((s, t) => s + t.length, 0);
-        let charCursor = 0;
-        for (const token of tokens) {
-          const tokenChars = token.length;
-          const fracStart = totalChars > 0 ? charCursor / totalChars : 0;
-          const fracEnd = totalChars > 0 ? (charCursor + tokenChars) / totalChars : 1;
+        // Proportional x-position using canvas measureText for accurate relative widths
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        ctx.font = '16px sans-serif'; // Arbitrary, we just need relative proportions
+        const tokenWidths = tokens.map(t => ctx.measureText(t).width);
+        const spaceWidth = ctx.measureText(' ').width;
+        
+        const totalTextWidth = tokenWidths.reduce((sum, w) => sum + w, 0) + (tokens.length - 1) * spaceWidth;
+        
+        let currentXOffset = 0;
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i];
+          const tWidth = tokenWidths[i];
+          
+          const fracStart = totalTextWidth > 0 ? currentXOffset / totalTextWidth : 0;
+          const fracEnd = totalTextWidth > 0 ? (currentXOffset + tWidth) / totalTextWidth : 1;
+          
           const tokX0 = Math.round(x0 + lineW * fracStart);
           const tokX1 = Math.round(x0 + lineW * fracEnd);
-          charCursor += tokenChars + 1; // +1 for space
+          
+          currentXOffset += tWidth + spaceWidth;
 
           results.push({
             text: token,

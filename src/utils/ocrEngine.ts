@@ -510,20 +510,40 @@ function extractNikCandidate(
 function mapPoint(
   px: number,
   py: number,
-  f: number,
-  dW: number,
-  dH: number,
-  preScale: number,
-  angle: number,
-  tW: number,
-  tH: number
+  f: number, // upscaleFactor
+  dW: number, // deskewW (width before upscale)
+  dH: number, // deskewH (height before upscale)
+  angle: number, // skewAngle
+  tW: number, // targetW (original width)
+  tH: number, // targetH (original height)
+  dsW: number, // downscaleW (width after MAX_DIM downscale)
+  dsH: number // downscaleH (height after MAX_DIM downscale)
 ): [number, number] {
-  // back to deskewed space, then uniform pre-scale to target size
-  const dsx = (px / f - dW / 2) * preScale + tW / 2;
-  const dsy = (py / f - dH / 2) * preScale + tH / 2;
-  // inverse rotation by +angle about target center
-  const ox = tW / 2 + Math.cos(angle) * (dsx - tW / 2) - Math.sin(angle) * (dsy - tH / 2);
-  const oy = tH / 2 + Math.sin(angle) * (dsx - tW / 2) + Math.cos(angle) * (dsy - tH / 2);
+  // 1. Undo upscale (brings coords back to deskewed space)
+  const x1 = px / f;
+  const y1 = py / f;
+
+  // 2. Undo deskew rotation
+  // rotateImage applied ctx.rotate(-angle). Inverse rotation is +angle.
+  // Center of deskewed image is (dW/2, dH/2)
+  const dx = x1 - dW / 2;
+  const dy = y1 - dH / 2;
+  const rad = (angle * Math.PI) / 180;
+  
+  // Inverse rotation (clockwise by angle in Y-down canvas space):
+  // X' = X cos(A) - Y sin(A)
+  // Y' = X sin(A) + Y cos(A)
+  const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+  const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+  
+  // Shift back to center of downscaled image
+  const x2 = rx + dsW / 2;
+  const y2 = ry + dsH / 2;
+
+  // 3. Undo downscale (independent scales for X and Y due to Math.round)
+  const ox = x2 * (tW / dsW);
+  const oy = y2 * (tH / dsH);
+
   return [ox, oy];
 }
 
@@ -532,10 +552,11 @@ function mapBoxBack(
   f: number,
   dW: number,
   dH: number,
-  preScale: number,
   angle: number,
   tW: number,
-  tH: number
+  tH: number,
+  dsW: number,
+  dsH: number
 ): SpatialWord {
   const corners: [number, number][] = [
     [w.x, w.y],
@@ -543,7 +564,7 @@ function mapBoxBack(
     [w.x, w.y + w.height],
     [w.x + w.width, w.y + w.height],
   ];
-  const pts = corners.map((c) => mapPoint(c[0], c[1], f, dW, dH, preScale, angle, tW, tH));
+  const pts = corners.map((c) => mapPoint(c[0], c[1], f, dW, dH, angle, tW, tH, dsW, dsH));
   const xs = pts.map((p) => p[0]);
   const ys = pts.map((p) => p[1]);
   const minX = Math.max(0, Math.min(...xs));
@@ -579,12 +600,16 @@ async function runOcrPipeline(
   // were being crushed below the LSTM's usable glyph size before any variant
   // could rescue them. 3200 keeps the memory ceiling while preserving text.
   const MAX_DIM = 3200;
+  let downscaleW = working.width;
+  let downscaleH = working.height;
   if (Math.max(working.width, working.height) > MAX_DIM) {
     const f = MAX_DIM / Math.max(working.width, working.height);
+    downscaleW = Math.round(working.width * f);
+    downscaleH = Math.round(working.height * f);
     working = resizeImageData(
       working,
-      Math.round(working.width * f),
-      Math.round(working.height * f)
+      downscaleW,
+      downscaleH
     );
   }
 
@@ -606,9 +631,6 @@ async function runOcrPipeline(
       deskewH = working.height;
     }
   }
-
-  // Uniform scale from deskewed space back to the original target space
-  const preScale = targetW / deskewW;
 
   // --- Geometric: upscale very small images, but leave medium/large alone ---
   // Upscale genuinely tiny inputs (< 1200 px long edge) hard: Tesseract's LSTM
@@ -726,7 +748,7 @@ async function runOcrPipeline(
     words = repairTokens(sanitizeTokens(words));
   }
 
-  return words.map((w) => mapBoxBack(w, bestFactor, deskewW, deskewH, preScale, skewAngle, targetW, targetH));
+  return words.map((w) => mapBoxBack(w, bestFactor, deskewW, deskewH, skewAngle, targetW, targetH, downscaleW, downscaleH));
 }
 
 function countPsmPasses(config: TesseractConfig, docType: DocumentType): number {

@@ -176,8 +176,8 @@
               />
 
               <!-- Bounding Box Layer -->
-              <!-- 1. Text Bounding Boxes -->
-              <template v-for="word in getWordsForPage(page.pageIndex)" :key="'word-' + page.id + '-' + word.globalIndex">
+              <!-- 1. Text Bounding Boxes (words inside committed manual blocks are hidden to avoid nested-box visual noise) -->
+              <template v-for="word in getWordsForPage(page.pageIndex).filter(w => !wordIndicesInsideManualRegions.has(w.globalIndex))" :key="'word-' + page.id + '-' + word.globalIndex">
                 <div
                   class="absolute flex items-center justify-center overflow-visible group transition-all pointer-events-none"
                   :class="wordBoxClass(word)"
@@ -1405,6 +1405,37 @@ function getManualRegionsForPage(pageIndex: number) {
   return page ? page.manualRegions || [] : [];
 }
 
+/**
+ * Computes the set of word globalIndexes that are fully enclosed by at least
+ * one committed manual redaction block. Word bounding boxes inside a manual
+ * block are suppressed from rendering — they would otherwise "shine through"
+ * the semi-transparent striped overlay, creating confusing nested boxes.
+ */
+const wordIndicesInsideManualRegions = computed<Set<number>>(() => {
+  const inside = new Set<number>();
+  for (const page of localPages.value) {
+    const regions = page.manualRegions;
+    if (!regions || regions.length === 0) continue;
+    const pageWords = editableWords.value.filter(
+      (w) => (w.pageIndex || 1) === page.pageIndex
+    );
+    for (const w of pageWords) {
+      for (const r of regions) {
+        if (
+          w.x >= r.x &&
+          w.y >= r.y &&
+          w.x + w.width <= r.x + r.w &&
+          w.y + w.height <= r.y + r.h
+        ) {
+          inside.add(w.globalIndex);
+          break;
+        }
+      }
+    }
+  }
+  return inside;
+});
+
 function toggleWord(globalIndex: number) {
   const currentlyRedacted = isWordRedacted(globalIndex);
   if (currentlyRedacted) {
@@ -1935,6 +1966,12 @@ async function onContainerPointerUp(e: PointerEvent) {
       w: Math.abs(coords.x - pointerStartX.value),
       h: Math.abs(coords.y - pointerStartY.value),
     };
+
+    // Clear the live drag preview BEFORE committing to manualRegions so Vue
+    // never renders both the dashed live-preview and the committed striped box
+    // in the same render tick (eliminates the double-box flash).
+    isDrawing.value = false;
+    activeDragPageId.value = null;
 
     if (rect.w >= MIN_DRAG_RECT_SIZE && rect.h >= MIN_DRAG_RECT_SIZE) {
       if (interactionMode.value === 'scan') {

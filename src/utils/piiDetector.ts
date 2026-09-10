@@ -234,7 +234,7 @@ export function analyzeWords(
   activeTypes: PIIType[] = ALL_TYPES,
   options: AnalyzeOptions = {},
 ): SensitiveMatch[] {
-  const { requireContextForGated = true, autoRedactThreshold = 0.6 } = options;
+  const { requireContextForGated = true, autoRedactThreshold = 0.75 } = options;
   const labelMap = findLabelProximityMatches(words);
   const matches: SensitiveMatch[] = [];
 
@@ -243,7 +243,6 @@ export function analyzeWords(
     const idx = (w as any).globalIndex ?? i;
     const raw = (w.text ?? '').trim();
     if (raw.length === 0) continue;
-    const norm = getNormalized(raw);
     const ocrConf = typeof w.confidence === 'number' ? w.confidence : 80;
 
     const labelType = labelMap.get(i);
@@ -261,6 +260,139 @@ export function analyzeWords(
       });
       continue;
     }
+  }
+
+  // --- Line-Level Fuzzy Matching ---
+  // Group words into lines to overcome OCR engine splitting inconsistencies
+  const lines: { text: string; charToWordIndex: number[] }[] = [];
+  const sortedWords = [...words].sort((a, b) => (a.y ?? 0) - (b.y ?? 0));
+  
+  let currentLineWords: OcrWord[] = [];
+  let currentY = sortedWords[0]?.y ?? 0;
+
+  for (const w of sortedWords) {
+    if (Math.abs((w.y ?? 0) - currentY) > Math.max(15, (w.height ?? 15))) {
+      if (currentLineWords.length > 0) {
+        currentLineWords.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+        let lineText = '';
+        const charToWordIndex: number[] = [];
+        for (const lw of currentLineWords) {
+          const lraw = (lw.text ?? '').trim();
+          if (!lraw) continue;
+          const start = lineText.length;
+          lineText += lraw + ' ';
+          const wIdx = (lw as any).globalIndex ?? words.indexOf(lw);
+          for (let c = start; c < lineText.length; c++) charToWordIndex[c] = wIdx;
+        }
+        lines.push({ text: lineText.trimEnd(), charToWordIndex });
+      }
+      currentLineWords = [w];
+      currentY = w.y ?? 0;
+    } else {
+      currentLineWords.push(w);
+    }
+  }
+  if (currentLineWords.length > 0) {
+    currentLineWords.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+    let lineText = '';
+    const charToWordIndex: number[] = [];
+    for (const lw of currentLineWords) {
+      const lraw = (lw.text ?? '').trim();
+      if (!lraw) continue;
+      const start = lineText.length;
+      lineText += lraw + ' ';
+      const wIdx = (lw as any).globalIndex ?? words.indexOf(lw);
+      for (let c = start; c < lineText.length; c++) charToWordIndex[c] = wIdx;
+    }
+    lines.push({ text: lineText.trimEnd(), charToWordIndex });
+  }
+
+  // Define regexes that run on spaces-removed strings, using lookarounds for boundaries
+  const LINE_REGEXES: Partial<Record<PIIType, RegExp>> = {
+    phone: /(?<=^|[^0-9])(?:\+?628\d{8,11}|08\d{8,11}|0\d{2,4}[.-]?\d{6,8})(?=$|[^0-9])/g,
+    nik: /(?<=^|[^0-9])\d{16}(?=$|[^0-9])/g,
+    bank: /(?<=^|[^0-9])\d{10,16}(?=$|[^0-9])/g,
+    bpjs: /(?<=^|[^0-9])000\d{10}(?=$|[^0-9])/g,
+    npwp: /(?<=^|[^0-9])\d{2}\.\d{3}\.\d{3}\.\d{1}-\d{3}\.\d{3}(?=$|[^0-9])/g,
+  };
+
+  // Run Matchers on Line Strings
+  for (const line of lines) {
+    let cleanText = "";
+    const cleanToRawIndex: number[] = [];
+    for (let i = 0; i < line.text.length; i++) {
+      if (!/\s/.test(line.text[i])) {
+        cleanToRawIndex.push(i);
+        cleanText += line.text[i];
+      }
+    }
+    const normClean = getNormalized(cleanText);
+
+    for (const type of activeTypes) {
+      const regex = LINE_REGEXES[type];
+      if (!regex) continue;
+      
+      let match;
+      while ((match = regex.exec(normClean)) !== null) {
+        // Exclude niks mapped as banks, etc.
+        if (type === 'bank' && LINE_REGEXES.nik?.test(match[0])) continue;
+        if (type === 'bank' && LINE_REGEXES.phone?.test(match[0])) continue;
+        
+        // Strict validation for fuzzy-matched NIK
+        if (type === 'nik' && !isValidNik(match[0])) continue;
+
+        const startClean = match.index;
+        const endClean = match.index + match[0].length - 1;
+        const startRaw = cleanToRawIndex[startClean];
+        const endRaw = cleanToRawIndex[endClean];
+        
+        const startWordIdx = line.charToWordIndex[startRaw];
+        const endWordIdx = line.charToWordIndex[endRaw];
+        
+        if (startWordIdx === undefined || endWordIdx === undefined) continue;
+
+        // Collect all words involved in this match
+        const hitIndices = new Set<number>();
+        for (let r = startRaw; r <= endRaw; r++) {
+          hitIndices.add(line.charToWordIndex[r]);
+        }
+
+        const avgConf = Array.from(hitIndices).reduce((sum, idx) => {
+          const w = words.find((x) => ((x as any).globalIndex ?? words.indexOf(x)) === idx);
+          return sum + (w?.confidence ?? 80);
+        }, 0) / hitIndices.size;
+        
+        const combined = (avgConf / 100) * RULE_STRENGTH[type];
+        const auto = combined >= autoRedactThreshold;
+
+        for (const idx of hitIndices) {
+          const w = words.find((x) => ((x as any).globalIndex ?? words.indexOf(x)) === idx);
+          if (!w) continue;
+          // Avoid duplicate hits from token-level matching
+          if (!matches.some(m => m.wordIndex === idx && m.type === type)) {
+            matches.push({
+              type,
+              wordIndex: idx,
+              text: line.text.substring(startRaw, endRaw + 1),
+              ruleStrength: RULE_STRENGTH[type],
+              ocrConf: avgConf,
+              combined,
+              autoRedact: auto,
+              source: 'regex',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const idx = (w as any).globalIndex ?? i;
+    const raw = (w.text ?? '').trim();
+    if (raw.length === 0) continue;
+    const norm = getNormalized(raw);
+    const ocrConf = typeof w.confidence === 'number' ? w.confidence : 80;
 
     for (const type of activeTypes) {
       const matcher = MATCHERS[type];

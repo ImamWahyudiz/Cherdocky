@@ -199,67 +199,87 @@ export async function extractAllPdfText(
     // so unmerged items surface as fragments like "lan" instead of "jalan".
     const lines = mergePdfItemsIntoLines(rawItems);
 
-    // 3. Tokenize each merged line into words with proportional char metrics
+    // 3. Tokenize using segment boundaries (each segment = one visual word from PDF.js).
+    //    Segment x/width come from PDF.js glyph advance data — no Arial canvas measurement.
     for (const line of lines) {
-      // Baseline sits at `line.baselineY`.
-      // Ascender / Cap-height is approx 0.80 of font height.
-      // Descender is approx 0.20 of font height.
       const topY = line.baselineY - line.fontHeight * 0.85;
       const totalHeight = line.fontHeight * 1.15;
 
-      // Proportional character metrics for the merged run (width includes
-      // inter-fragment gaps so characters map back proportionally).
-      const charWidths = getAccurateCharWidths(line.str, line.width, 'sans-serif', line.fontHeight);
+      for (const segment of line.segments) {
+        const segStr = segment.str.trim();
+        if (!segStr) continue;
 
-      // Split on whitespace and standard sentence punctuation so words like "Hello,"
-      // become two separate tokens ["Hello", ","] — selecting "Hello" won't include the comma.
-      const tokens = line.str.split(/(\s+|[,.;:!?])/g);
-      let charIndex = 0;
+        // If the segment has no internal space, it's one word — use its exact bbox.
+        if (!segStr.includes(' ')) {
+          // Strip leading/trailing sentence punctuation and adjust x/width proportionally
+          // so the box wraps only the alphanumeric content (e.g. "NIK:" → "NIK").
+          const inner = segStr.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+          if (!inner) continue;
 
-      for (const token of tokens) {
-        const trimmed = token.trim();
-        const tokenLen = token.length;
+          let wordX = segment.x;
+          let wordW = segment.width;
 
-        if (trimmed.length > 0) {
-          const leadingSpaces = token.indexOf(trimmed);
-          const wordStartChar = charIndex + leadingSpaces;
-          const wordEndChar = wordStartChar + trimmed.length;
-
-          // Compute exact word start X position by summing preceding character widths
-          let wordStartX = line.x;
-          for (let c = 0; c < wordStartChar; c++) {
-            wordStartX += charWidths[c] || 0;
+          if (inner !== segStr) {
+            // Shift x past leading punctuation, shrink width to content only
+            const leadLen = segStr.length - segStr.replace(/^[^\p{L}\p{N}]+/gu, '').length;
+            const charW = segment.width / segStr.length;
+            wordX = segment.x + leadLen * charW;
+            wordW = inner.length * charW;
           }
 
-          // Compute exact word width by summing constituent character widths
-          let wordWidth = 0;
-          for (let c = wordStartChar; c < wordEndChar; c++) {
-            wordWidth += charWidths[c] || 0;
-          }
-
-          // Skip decorative / noise-only punctuation. Standard sentence punctuation
-          // (, . ; : ! ?) is kept as separate selectable tokens so users can select
-          // words independently from their trailing/leading punctuation.
-          const isNoisePunctuation = /^[-_~—|•*#:=\\/]+$/.test(trimmed);
+          // Skip noise-only tokens (dividers, decorative separators)
+          const isNoisePunctuation = /^[-_~—|•*#:=\\/]+$/.test(inner);
           if (!isNoisePunctuation) {
-            // Minimal 1px padding — tight fit so selection doesn't visually include
-            // adjacent space or punctuation. Box is positioned at exact char boundaries.
-            const padX = 1;
-            const padY = 2;
-
             spatialWords.push({
-              text: trimmed,
-              x: Math.round(wordStartX - padX),
-              y: Math.max(0, Math.round(topY - padY)),
-              width: Math.round(wordWidth + padX * 2),
-              height: Math.round(totalHeight + padY * 2),
+              text: inner,
+              x: Math.round(wordX),
+              y: Math.max(0, Math.round(topY)),
+              width: Math.max(4, Math.round(wordW)),
+              height: Math.round(totalHeight + 4),
               confidence: 100,
               pageIndex: i,
             });
           }
+          continue;
         }
 
-        charIndex += tokenLen;
+        // Segment contains internal spaces → fall back to proportional char widths
+        // (this path is rare — most PDF.js items end at word boundaries).
+        const charWidths = getAccurateCharWidths(segStr, segment.width, 'sans-serif', line.fontHeight);
+        const tokens = segStr.split(/(\s+|[,.;:!?])/g);
+        let charIndex = 0;
+
+        for (const token of tokens) {
+          const trimmed = token.trim();
+          const tokenLen = token.length;
+
+          if (trimmed.length > 0) {
+            const leadingSpaces = token.indexOf(trimmed);
+            const wordStartChar = charIndex + leadingSpaces;
+            const wordEndChar = wordStartChar + trimmed.length;
+
+            let wordStartX = segment.x;
+            for (let c = 0; c < wordStartChar; c++) wordStartX += charWidths[c] || 0;
+
+            let wordWidth = 0;
+            for (let c = wordStartChar; c < wordEndChar; c++) wordWidth += charWidths[c] || 0;
+
+            const isNoisePunctuation = /^[-_~—|•*#:=\\/]+$/.test(trimmed);
+            if (!isNoisePunctuation) {
+              spatialWords.push({
+                text: trimmed,
+                x: Math.round(wordStartX),
+                y: Math.max(0, Math.round(topY)),
+                width: Math.max(4, Math.round(wordWidth)),
+                height: Math.round(totalHeight + 4),
+                confidence: 100,
+                pageIndex: i,
+              });
+            }
+          }
+
+          charIndex += tokenLen;
+        }
       }
     }
   }

@@ -148,5 +148,44 @@ export function suppressConflicts<T extends SanitizableToken>(tokens: T[]): T[] 
 
 /** Combined entry point: garbage filters, then conflict suppression. */
 export function sanitizeTokens<T extends SanitizableToken>(tokens: T[]): T[] {
-  return suppressConflicts(filterGarbage(tokens));
+  return suppressConflicts(filterGarbage(tokens).map(trimBoundaryPunctuation));
+}
+
+/**
+ * Trims leading/trailing sentence punctuation from a token's text and shrinks
+ * the bbox proportionally so the redaction box wraps only the alphanumeric
+ * content — not the trailing colon, comma, or quote that happens to be glued
+ * to the word in the OCR output (e.g. "NIK:" → text:"NIK", width 75%).
+ *
+ * Only applied when the trimmed core is non-empty AND meaningful (length ≥ 2
+ * after trimming, or the original was a single real character with punctuation).
+ * Single-char stubs like "." or ":" are left for filterGarbage to drop.
+ *
+ * Width is adjusted by a simple character-count proportion because the
+ * characters within one OCR token are assumed to be roughly uniform-width at
+ * the resolution returned by Tesseract / ONNX (monospace-ish crop bands).
+ */
+export function trimBoundaryPunctuation<T extends SanitizableToken>(token: T): T {
+  const raw = token.text;
+  // Match: optional leading punct, core alphanumeric/word content, optional trailing punct
+  const m = raw.match(/^([^\p{L}\p{N}]*)(.+?)([^\p{L}\p{N}]*)$/u);
+  if (!m) return token;
+
+  const [, leading, core, trailing] = m;
+  if (!leading && !trailing) return token; // nothing to trim
+
+  const coreLen = core.length;
+  const rawLen = raw.length;
+  if (coreLen === 0 || rawLen === 0) return token;
+
+  const charW = token.width / rawLen;
+  const newX = token.x + leading.length * charW;
+  const newW = Math.max(2, Math.round(coreLen * charW));
+
+  return {
+    ...token,
+    text: core,
+    x: Math.round(newX),
+    width: newW,
+  };
 }
