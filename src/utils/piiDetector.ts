@@ -110,11 +110,28 @@ export function isValidNik(raw: string): boolean {
 // Matchers (regex on normalized text)
 // ---------------------------------------------------------------------------
 
+export function isCurrencyOrAmount(raw: string): boolean {
+  const trimmed = raw.trim();
+  // Standard thousand-separated format (e.g., 200.000.000, 20.000.000, 1.500.000,00, 1,000,000.00)
+  if (/^\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?$/.test(trimmed)) return true;
+  // Currency symbols (e.g., Rp 50.000, IDR 100.000, $500, €20)
+  if (/^(?:rp|idr|usd|\$|€|¥)\.?\s*\d+/i.test(trimmed)) return true;
+  return false;
+}
+
+export function isIndonesianPhone(text: string): boolean {
+  if (isCurrencyOrAmount(text)) return false;
+  const clean = text.replace(/[\s().-]/g, '');
+  // Mobile: +628xxx or 08xxx (10 to 13 digits total)
+  if (/^(?:\+?62|0)8[1-9]\d{7,10}$/.test(clean)) return true;
+  // Landline: (021) xxx, 0274-xxx, 031-xxx (area code 02x, 03x, 04x, 05x, 06x, 07x, 09x - never 00x)
+  if (/^0(?:2[1-9]|3[1-8]|4[1-8]|5[1-6]|6[1-5]|7[1-7]|9[1-8])\d{5,8}$/.test(clean)) return true;
+  return false;
+}
+
 const DOB_RE = /(?:0?[1-9]|[12][0-9]|3[01])[/.-](?:0?[1-9]|1[012])[/.-](?:19|20)\d{2}|(?:0?[1-9]|[12][0-9]|3[01])\s+(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|january|february|march|may|june|july|august|october|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(?:19|20)\d{2}/i;
 
 const TTL_RE = /\b[A-Za-z]{3,18},\s*(?:(?:0?[1-9]|[12][0-9]|3[01])[/.-](?:0?[1-9]|1[012])[/.-](?:19|20)\d{2})\b/i;
-
-const PHONE_RE = /\b(?:\+?62[\s-]?8\d{8,11}|08\d{8,11}|\(?0\d{2,4}\)?[\s.-]?\d{6,8})\b/;
 
 const NPWP_RE = /\b\d{2}\.\d{3}\.\d{3}\.\d{1}-\d{3}\.\d{3}\b/;
 
@@ -127,15 +144,15 @@ const ID_RE = /\b[A-Z]{1,2}\d{6,8}\b|\b\d{1,2}[A-Z]\d{5,7}\b/i;
 type Matcher = (norm: string, raw: string) => boolean;
 
 const MATCHERS: Partial<Record<PIIType, Matcher>> = {
-  nik: (_n, raw) => isValidNik(raw),
-  phone: (n) => PHONE_RE.test(n),
+  nik: (_n, raw) => !isCurrencyOrAmount(raw) && isValidNik(raw),
+  phone: (_n, raw) => isIndonesianPhone(raw),
   email: (_n, raw) => /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/.test(raw),
   dob: (n) => DOB_RE.test(n),
   date: (n) => DOB_RE.test(n),
   ttl: (n) => TTL_RE.test(n),
   npwp: (n) => NPWP_RE.test(n),
   bpjs: (n) => BPJS_RE.test(n),
-  bank: (n) => BANK_RE.test(n) && !isValidNik(n) && !PHONE_RE.test(n),
+  bank: (n, raw) => !isCurrencyOrAmount(raw) && BANK_RE.test(n) && !isValidNik(n) && !isIndonesianPhone(raw),
   id: (n) => ID_RE.test(n),
 };
 
@@ -234,7 +251,7 @@ export function analyzeWords(
   activeTypes: PIIType[] = ALL_TYPES,
   options: AnalyzeOptions = {},
 ): SensitiveMatch[] {
-  const { requireContextForGated = true, autoRedactThreshold = 0.75 } = options;
+  const { requireContextForGated = true, autoRedactThreshold = 0.70 } = options;
   const labelMap = findLabelProximityMatches(words);
   const matches: SensitiveMatch[] = [];
 
@@ -270,21 +287,37 @@ export function analyzeWords(
   let currentLineWords: OcrWord[] = [];
   let currentY = sortedWords[0]?.y ?? 0;
 
+  const buildLine = (lineWords: OcrWord[]) => {
+    lineWords.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+    let lineText = '';
+    const charToWordIndex: number[] = [];
+    for (let idx = 0; idx < lineWords.length; idx++) {
+      const lw = lineWords[idx];
+      const lraw = (lw.text ?? '').trim();
+      if (!lraw) continue;
+      
+      // If there is a wide horizontal gap between words (e.g. separate table columns),
+      // insert a column separator '|' so cleanText does not merge them into fake phone/account numbers.
+      if (idx > 0) {
+        const prevW = lineWords[idx - 1];
+        const gap = (lw.x ?? 0) - ((prevW.x ?? 0) + (prevW.width ?? 0));
+        if (gap > Math.max(35, (prevW.height ?? 20) * 1.5)) {
+          lineText += ' | ';
+        }
+      }
+
+      const start = lineText.length;
+      lineText += lraw + ' ';
+      const wIdx = (lw as any).globalIndex ?? words.indexOf(lw);
+      for (let c = start; c < lineText.length; c++) charToWordIndex[c] = wIdx;
+    }
+    return { text: lineText.trimEnd(), charToWordIndex };
+  };
+
   for (const w of sortedWords) {
     if (Math.abs((w.y ?? 0) - currentY) > Math.max(15, (w.height ?? 15))) {
       if (currentLineWords.length > 0) {
-        currentLineWords.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
-        let lineText = '';
-        const charToWordIndex: number[] = [];
-        for (const lw of currentLineWords) {
-          const lraw = (lw.text ?? '').trim();
-          if (!lraw) continue;
-          const start = lineText.length;
-          lineText += lraw + ' ';
-          const wIdx = (lw as any).globalIndex ?? words.indexOf(lw);
-          for (let c = start; c < lineText.length; c++) charToWordIndex[c] = wIdx;
-        }
-        lines.push({ text: lineText.trimEnd(), charToWordIndex });
+        lines.push(buildLine(currentLineWords));
       }
       currentLineWords = [w];
       currentY = w.y ?? 0;
@@ -293,23 +326,12 @@ export function analyzeWords(
     }
   }
   if (currentLineWords.length > 0) {
-    currentLineWords.sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
-    let lineText = '';
-    const charToWordIndex: number[] = [];
-    for (const lw of currentLineWords) {
-      const lraw = (lw.text ?? '').trim();
-      if (!lraw) continue;
-      const start = lineText.length;
-      lineText += lraw + ' ';
-      const wIdx = (lw as any).globalIndex ?? words.indexOf(lw);
-      for (let c = start; c < lineText.length; c++) charToWordIndex[c] = wIdx;
-    }
-    lines.push({ text: lineText.trimEnd(), charToWordIndex });
+    lines.push(buildLine(currentLineWords));
   }
 
   // Define regexes that run on spaces-removed strings, using lookarounds for boundaries
   const LINE_REGEXES: Partial<Record<PIIType, RegExp>> = {
-    phone: /(?<=^|[^0-9])(?:\+?628\d{8,11}|08\d{8,11}|0\d{2,4}[.-]?\d{6,8})(?=$|[^0-9])/g,
+    phone: /(?<=^|[^0-9])(?:\+?628[1-9]\d{7,10}|08[1-9]\d{7,10}|0(?:2[1-9]|3[1-8]|4[1-8]|5[1-6]|6[1-5]|7[1-7]|9[1-8])\d?[-.]?\d{5,8})(?=$|[^0-9])/g,
     nik: /(?<=^|[^0-9])\d{16}(?=$|[^0-9])/g,
     bank: /(?<=^|[^0-9])\d{10,16}(?=$|[^0-9])/g,
     bpjs: /(?<=^|[^0-9])000\d{10}(?=$|[^0-9])/g,
@@ -334,6 +356,9 @@ export function analyzeWords(
       
       let match;
       while ((match = regex.exec(normClean)) !== null) {
+        // Exclude currency / monetary numbers (e.g., 200.000.000, 20.000.000)
+        if (isCurrencyOrAmount(match[0])) continue;
+
         // Exclude niks mapped as banks, etc.
         if (type === 'bank' && LINE_REGEXES.nik?.test(match[0])) continue;
         if (type === 'bank' && LINE_REGEXES.phone?.test(match[0])) continue;
@@ -354,16 +379,29 @@ export function analyzeWords(
         // Collect all words involved in this match
         const hitIndices = new Set<number>();
         for (let r = startRaw; r <= endRaw; r++) {
-          hitIndices.add(line.charToWordIndex[r]);
+          if (line.charToWordIndex[r] !== undefined) {
+            hitIndices.add(line.charToWordIndex[r]);
+          }
         }
 
+        // Apply context gating for weak signals (bank, id)
+        let auto: boolean;
         const avgConf = Array.from(hitIndices).reduce((sum, idx) => {
           const w = words.find((x) => ((x as any).globalIndex ?? words.indexOf(x)) === idx);
           return sum + (w?.confidence ?? 80);
-        }, 0) / hitIndices.size;
+        }, 0) / Math.max(1, hitIndices.size);
         
         const combined = (avgConf / 100) * RULE_STRENGTH[type];
-        const auto = combined >= autoRedactThreshold;
+
+        if (CONTEXT_GATED[type]) {
+          const hasNearby = Array.from(hitIndices).some((hIdx) => {
+            const targetIdx = words.findIndex((x) => ((x as any).globalIndex ?? words.indexOf(x)) === hIdx);
+            return targetIdx !== -1 && hasContext(words as any, targetIdx, CONTEXT_GATED[type]!);
+          });
+          auto = requireContextForGated ? hasNearby : combined >= autoRedactThreshold;
+        } else {
+          auto = combined >= autoRedactThreshold;
+        }
 
         for (const idx of hitIndices) {
           const w = words.find((x) => ((x as any).globalIndex ?? words.indexOf(x)) === idx);
@@ -411,16 +449,18 @@ export function analyzeWords(
       } else {
         auto = combined >= autoRedactThreshold;
       }
-      matches.push({
-        type,
-        wordIndex: idx,
-        text: raw,
-        ruleStrength: RULE_STRENGTH[type],
-        ocrConf,
-        combined,
-        autoRedact: auto,
-        source: 'regex',
-      });
+      if (!matches.some(m => m.wordIndex === idx && m.type === type)) {
+        matches.push({
+          type,
+          wordIndex: idx,
+          text: raw,
+          ruleStrength: RULE_STRENGTH[type],
+          ocrConf,
+          combined,
+          autoRedact: auto,
+          source: 'regex',
+        });
+      }
     }
   }
 

@@ -83,6 +83,19 @@ describe('analyzeWords precision', () => {
     // None of these should be auto-redacted as sensitive.
     expect(m.filter((x) => x.autoRedact).length).toBe(0);
   });
+
+  it('does NOT misclassify table currency numbers as phone numbers or bank accounts', () => {
+    // Table row with column amounts like 200.000.000, 245.000.000, 20.000.000
+    const tableWords = [
+      w('1', 50, 100),
+      w('200.000.000', 150, 100),
+      w('200.000.000', 300, 100),
+      w('245.000.000', 150, 150),
+      w('20.000.000', 150, 200),
+    ];
+    const m = analyzeWords(tableWords, ['phone', 'bank', 'nik']);
+    expect(m.length).toBe(0);
+  });
 });
 
 describe('findContextualPIIWordIndices', () => {
