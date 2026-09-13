@@ -43,8 +43,8 @@ export default defineConfig({
             '~': path.resolve(__dirname, './src')
         }
     },
-    // Set base path for GitHub Pages (https://<username>.github.io/Cherdocky/)
-    base: process.env.NODE_ENV === 'production' ? '/Cherdocky/' : '/',
+    // Base path: custom domain (cherdocky.bot.cd), Vercel, and local dev all use root '/'
+    base: process.env.VITE_BASE_PATH || '/',
     server: {
         headers: {
             'Cross-Origin-Opener-Policy': 'same-origin',

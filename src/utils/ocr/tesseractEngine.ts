@@ -3,6 +3,25 @@ import { getTesseractConfig } from '../tesseractProfiles';
 import { DocumentType } from '../documentClassifier';
 import type { IOcrEngine, OcrRawWord, RecognizeOptions } from './types';
 
+interface PooledWorker {
+  id: number;
+  worker: Worker;
+  busy: boolean;
+  progressSink: ((p: number) => void) | null;
+}
+
+function getOptimalConcurrency(): number {
+  if (typeof navigator === 'undefined') return 2;
+  const mem = (navigator as any).deviceMemory;
+  const cores = navigator.hardwareConcurrency || 2;
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile || (typeof mem === 'number' && mem < 4) || cores < 4) {
+    return 2;
+  }
+  // Desktop with 4+ cores: allocate up to 3 workers for optimal performance & memory safety
+  return Math.min(Math.max(2, Math.floor(cores / 2)), 3);
+}
+
 export class TesseractEngine implements IOcrEngine {
   readonly name = 'tesseract';
   readonly capabilities = {
@@ -11,31 +30,88 @@ export class TesseractEngine implements IOcrEngine {
     nikRecovery: true,
   } as const;
 
-  private _worker: Worker | null = null;
-  private _workerInitializing: Promise<Worker> | null = null;
-  private _progressSink: ((p: number) => void) | null = null;
+  private _pool: PooledWorker[] = [];
+  private _maxWorkers: number = getOptimalConcurrency();
+  private _nextWorkerId = 0;
+  private _waitQueue: Array<{
+    resolve: (worker: PooledWorker) => void;
+    reject: (err: any) => void;
+  }> = [];
+  private _initPromise: Promise<void> | null = null;
+  private _isTerminated = false;
 
   async initialize(): Promise<void> {
-    if (this._worker) return;
+    if (this._isTerminated) {
+      this._isTerminated = false;
+    }
+    if (this._pool.length > 0) return;
 
-    if (!this._workerInitializing) {
-      this._workerInitializing = (async () => {
-        const worker = await createWorker(['ind', 'eng'], 1, {
-          logger: (m) => {
-            if (this._progressSink) {
-              if (m.status === 'loading tesseract core') this._progressSink(0.01);
-              else if (m.status === 'initializing tesseract') this._progressSink(0.02);
-              else if (m.status === 'loading language traineddata') this._progressSink(0.03);
-              else if (m.status === 'recognizing text') this._progressSink(m.progress);
-            }
-          },
-        });
-        this._worker = worker;
-        return worker;
+    if (!this._initPromise) {
+      this._initPromise = (async () => {
+        // Prewarm first worker
+        await this._createPooledWorker();
       })();
     }
 
-    await this._workerInitializing;
+    await this._initPromise;
+  }
+
+  private async _createPooledWorker(): Promise<PooledWorker> {
+    const pooled: PooledWorker = {
+      id: ++this._nextWorkerId,
+      worker: null as any,
+      busy: false,
+      progressSink: null,
+    };
+
+    const worker = await createWorker(['ind', 'eng'], 1, {
+      logger: (m) => {
+        if (pooled.progressSink) {
+          if (m.status === 'loading tesseract core') pooled.progressSink(0.01);
+          else if (m.status === 'initializing tesseract') pooled.progressSink(0.02);
+          else if (m.status === 'loading language traineddata') pooled.progressSink(0.03);
+          else if (m.status === 'recognizing text') pooled.progressSink(m.progress);
+        }
+      },
+    });
+
+    pooled.worker = worker;
+    this._pool.push(pooled);
+    return pooled;
+  }
+
+  private async _acquireWorker(): Promise<PooledWorker> {
+    if (this._isTerminated) throw new Error('TesseractEngine is terminated');
+
+    // 1. Check for an idle worker
+    const idle = this._pool.find((w) => !w.busy);
+    if (idle) {
+      idle.busy = true;
+      return idle;
+    }
+
+    // 2. Can we spin up a new worker up to maxWorkers?
+    if (this._pool.length < this._maxWorkers) {
+      const newWorker = await this._createPooledWorker();
+      newWorker.busy = true;
+      return newWorker;
+    }
+
+    // 3. Otherwise queue up and wait
+    return new Promise<PooledWorker>((resolve, reject) => {
+      this._waitQueue.push({ resolve, reject });
+    });
+  }
+
+  private _releaseWorker(pooled: PooledWorker): void {
+    pooled.progressSink = null;
+    if (this._waitQueue.length > 0) {
+      const next = this._waitQueue.shift()!;
+      pooled.busy = true;
+      next.resolve(pooled);
+    } else {
+      pooled.busy = false;
+    }
   }
 
   async recognize(
@@ -43,7 +119,7 @@ export class TesseractEngine implements IOcrEngine {
     options?: RecognizeOptions
   ): Promise<OcrRawWord[]> {
     await this.initialize();
-    if (!this._worker) throw new Error('Tesseract worker not initialized');
+    const pooled = await this._acquireWorker();
 
     const docType = options?.docType ?? DocumentType.UNKNOWN;
     const config = getTesseractConfig(docType);
@@ -61,26 +137,31 @@ export class TesseractEngine implements IOcrEngine {
       params.load_system_dawg = '0';
     }
 
-    const prevSink = this._progressSink;
-    this._progressSink = options?.onProgress ?? null;
+    pooled.progressSink = options?.onProgress ?? null;
 
     try {
-      await this._worker.setParameters(params as any);
-      const { data } = await this._worker.recognize(image, {}, { blocks: true });
+      await pooled.worker.setParameters(params as any);
+      const { data } = await pooled.worker.recognize(image, {}, { blocks: true });
       return this.flattenWords(data);
     } finally {
-      this._progressSink = prevSink;
       const baseParams = this.buildParams(config, docType);
-      await this._worker.setParameters(baseParams as any);
+      try {
+        await pooled.worker.setParameters(baseParams as any);
+      } catch (_) {}
+      this._releaseWorker(pooled);
     }
   }
 
   async terminate(): Promise<void> {
-    if (this._worker) {
-      await this._worker.terminate();
-      this._worker = null;
-      this._workerInitializing = null;
+    this._isTerminated = true;
+    while (this._waitQueue.length > 0) {
+      const pending = this._waitQueue.shift();
+      pending?.reject(new Error('TesseractEngine terminated'));
     }
+    const currentWorkers = [...this._pool];
+    this._pool = [];
+    this._initPromise = null;
+    await Promise.allSettled(currentWorkers.map((w) => w.worker?.terminate()));
   }
 
   private buildParams(config: ReturnType<typeof getTesseractConfig>, docType: DocumentType): Record<string, string> {

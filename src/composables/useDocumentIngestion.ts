@@ -24,6 +24,7 @@ export interface DocumentPageItem {
   words: SpatialWord[];
   manualRegions: DetectedRegion[];
   faceRegions: DetectedRegion[];
+  facesScanned?: boolean;
 }
 
 export type IngestionPhase = 'model-load' | 'preprocess' | 'detect' | 'recognize' | 'post';
@@ -48,6 +49,31 @@ function isMobileDevice(): boolean {
 
 function getTimeBudgetMs(): number {
   return isMobileDevice() ? MOBILE_TIME_BUDGET_MS : DESKTOP_TIME_BUDGET_MS;
+}
+
+function getIngestionConcurrency(): number {
+  if (isLowEndDevice() || isMobileDevice()) return 2;
+  const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
+  return Math.min(Math.max(2, Math.floor(cores / 2)), 3);
+}
+
+async function runConcurrent<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: Math.min(items.length, concurrency) }, async () => {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await fn(items[current], current);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
 }
 
 function getImageDimensions(fileOrUrl: Blob | string): Promise<{ width: number; height: number; url: string }> {
@@ -226,17 +252,22 @@ export const useDocumentIngestion = () => {
 
       cleanupPageUrls();
 
-      const allWords: SpatialWord[] = [];
-      const newPages: DocumentPageItem[] = [];
+      const concurrency = getIngestionConcurrency();
+      const pageProgress = new Array(rasterPages.length).fill(0);
+      const updatePdfAggregatedProgress = () => {
+        const avg = pageProgress.reduce((a, b) => a + b, 0) / Math.max(1, rasterPages.length);
+        const nextVal = Math.min(0.98, 0.4 + avg * 0.55);
+        progress.value = Math.max(progress.value, nextVal);
+      };
 
-      for (let i = 0; i < rasterPages.length; i++) {
-        const rPage = rasterPages[i];
+      const resolvedPages: DocumentPageItem[] = [];
+
+      await runConcurrent(rasterPages, concurrency, async (rPage, i) => {
         const pageNum = rPage.pageNum;
 
         const pageWords = await processDocument(rPage.blob!, (p, phase) => {
-          const stepBase = 0.4 + (i / rasterPages.length) * 0.55;
-          const stepSize = 0.55 / rasterPages.length;
-          progress.value = Math.min(0.98, stepBase + p * stepSize);
+          pageProgress[i] = p;
+          updatePdfAggregatedProgress();
           if (phase) processingPhase.value = phase as IngestionPhase;
         });
 
@@ -244,9 +275,8 @@ export const useDocumentIngestion = () => {
           ...w,
           pageIndex: pageNum,
         }));
-        allWords.push(...taggedWords);
 
-        newPages.push({
+        const pageItem: DocumentPageItem = {
           id: `pdf-page-${pageNum}`,
           pageIndex: pageNum,
           label: `Page ${pageNum}`,
@@ -259,15 +289,27 @@ export const useDocumentIngestion = () => {
           words: taggedWords,
           manualRegions: [],
           faceRegions: [],
-        });
-      }
+          facesScanned: false,
+        };
 
-      pages.value = newPages;
-      result.value = allWords;
-      if (newPages.length > 0) {
-        fileUrl.value = newPages[0].previewUrl;
+        resolvedPages.push(pageItem);
+        pages.value = [...resolvedPages].sort((a, b) => a.pageIndex - b.pageIndex);
+        result.value = pages.value.flatMap((p) => p.words);
+        if (pages.value.length > 0 && !fileUrl.value) {
+          fileUrl.value = pages.value[0].previewUrl;
+        }
+        pageProgress[i] = 1;
+        updatePdfAggregatedProgress();
+        return pageItem;
+      });
+
+      pages.value = [...resolvedPages].sort((a, b) => a.pageIndex - b.pageIndex);
+      result.value = pages.value.flatMap((p) => p.words);
+      if (pages.value.length > 0) {
+        fileUrl.value = pages.value[0].previewUrl;
       }
       progress.value = 1;
+      await new Promise((r) => setTimeout(r, 350));
     } catch (error: any) {
       console.error('Process PDF as OCR error:', error);
       const errMsg = error?.message || String(error);
@@ -308,20 +350,24 @@ export const useDocumentIngestion = () => {
 
     try {
       cleanupPageUrls();
-      const allWords: SpatialWord[] = [];
-      const newPages: DocumentPageItem[] = [];
+      const concurrency = getIngestionConcurrency();
+      const fileProgress = new Array(imageFiles.length).fill(0);
 
-      for (let i = 0; i < imageFiles.length; i++) {
-        const imgFile = imageFiles[i];
+      const updateAggregatedProgress = () => {
+        const avg = fileProgress.reduce((a, b) => a + b, 0) / Math.max(1, imageFiles.length);
+        const nextVal = Math.min(0.98, 0.05 + avg * 0.9);
+        progress.value = Math.max(progress.value, nextVal);
+      };
+
+      const resolvedPages: DocumentPageItem[] = [];
+
+      await runConcurrent(imageFiles, concurrency, async (imgFile, i) => {
         const pageNum = i + 1;
-
-        // Preload image dimensions safely
         const imgMeta = await getImageDimensions(imgFile);
 
         const pageWords = await processDocument(imgFile, (p, phase) => {
-          const stepBase = (i / imageFiles.length) * 0.9;
-          const stepSize = 0.9 / imageFiles.length;
-          progress.value = Math.min(0.95, stepBase + p * stepSize);
+          fileProgress[i] = p;
+          updateAggregatedProgress();
           if (phase) processingPhase.value = phase as IngestionPhase;
         });
 
@@ -329,10 +375,9 @@ export const useDocumentIngestion = () => {
           ...w,
           pageIndex: pageNum,
         }));
-        allWords.push(...taggedWords);
 
-        newPages.push({
-          id: `img-${pageNum}-${Date.now()}`,
+        const pageItem: DocumentPageItem = {
+          id: `img-${pageNum}-${Date.now()}-${i}`,
           pageIndex: pageNum,
           label: imageFiles.length > 1 ? `Image ${pageNum} (${imgFile.name})` : imgFile.name,
           type: 'image',
@@ -344,15 +389,27 @@ export const useDocumentIngestion = () => {
           words: taggedWords,
           manualRegions: [],
           faceRegions: [],
-        });
-      }
+          facesScanned: false,
+        };
 
-      pages.value = newPages;
-      result.value = allWords;
-      if (newPages.length > 0) {
-        fileUrl.value = newPages[0].previewUrl;
+        resolvedPages.push(pageItem);
+        pages.value = [...resolvedPages].sort((a, b) => a.pageIndex - b.pageIndex);
+        result.value = pages.value.flatMap((p) => p.words);
+        if (pages.value.length > 0 && !fileUrl.value) {
+          fileUrl.value = pages.value[0].previewUrl;
+        }
+        fileProgress[i] = 1;
+        updateAggregatedProgress();
+        return pageItem;
+      });
+
+      pages.value = [...resolvedPages].sort((a, b) => a.pageIndex - b.pageIndex);
+      result.value = pages.value.flatMap((p) => p.words);
+      if (pages.value.length > 0) {
+        fileUrl.value = pages.value[0].previewUrl;
       }
       progress.value = 1;
+      await new Promise((r) => setTimeout(r, 350));
     } catch (error: any) {
       console.error('Process images error:', error);
       // C2: Error boundary — on OOM/compile errors, terminate engine and fall back
@@ -375,10 +432,11 @@ export const useDocumentIngestion = () => {
     progress.value = 0.1;
     try {
       const startIndex = pages.value.length;
-      for (let i = 0; i < imageFiles.length; i++) {
-        const imgFile = imageFiles[i];
-        const pageNum = startIndex + i + 1;
+      const concurrency = getIngestionConcurrency();
+      const newItems: DocumentPageItem[] = [];
 
+      await runConcurrent(imageFiles, concurrency, async (imgFile, i) => {
+        const pageNum = startIndex + i + 1;
         const imgMeta = await getImageDimensions(imgFile);
         const pageWords = await processDocument(imgFile);
         const taggedWords = pageWords.map((w) => ({
@@ -386,8 +444,8 @@ export const useDocumentIngestion = () => {
           pageIndex: pageNum,
         }));
 
-        pages.value.push({
-          id: `img-${pageNum}-${Date.now()}`,
+        const pageItem: DocumentPageItem = {
+          id: `img-${pageNum}-${Date.now()}-${i}`,
           pageIndex: pageNum,
           label: `Image ${pageNum} (${imgFile.name})`,
           type: 'image',
@@ -399,11 +457,19 @@ export const useDocumentIngestion = () => {
           words: taggedWords,
           manualRegions: [],
           faceRegions: [],
-        });
+          facesScanned: false,
+        };
 
-        result.value.push(...taggedWords);
-      }
+        newItems.push(pageItem);
+        pages.value = [...pages.value.filter((p) => p.pageIndex <= startIndex), ...newItems].sort(
+          (a, b) => a.pageIndex - b.pageIndex
+        );
+        result.value = pages.value.flatMap((p) => p.words);
+        return pageItem;
+      });
+
       progress.value = 1;
+      await new Promise((r) => setTimeout(r, 300));
     } catch (error: any) {
       console.error('Add more images error:', error);
       alert('Failed to add images: ' + (error?.message || error));

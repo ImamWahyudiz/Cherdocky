@@ -231,6 +231,19 @@ async function recognizeToWords(
       bestScore = score;
       best = words;
     }
+
+    // Early exit for generic documents: if primary PSM produced solid, high-confidence output,
+    // skip fallback PSM passes to save compute and time.
+    if (unionPasses && passIndex === 0 && words.length >= 8 && score >= 6) {
+      const avgConf = words.reduce((acc, w) => acc + (w.confidence || 0), 0) / words.length;
+      const lowConfRatio = words.filter((w) => w.lowConf).length / words.length;
+      if (avgConf >= 70 && lowConfRatio < 0.25) {
+        if ((window as any).__OCR_DEBUG === true) {
+          console.log('[psm] Early exit on solid primary pass:', psm, 'solid=' + score, 'avgConf=' + avgConf);
+        }
+        break;
+      }
+    }
   }
   if (unionPasses) return dedupeWordUnion(passResults);
   if (

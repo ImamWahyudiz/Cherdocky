@@ -1726,10 +1726,12 @@ async function handleAdditionalFilesSelect(e: Event) {
 
       // 3. Run Face Detection automatically if enabled on new image
       let newFaceRegions: DetectedRegion[] = [];
+      let isFaceScanned = false;
       if (enableFaceDetection.value) {
         addImagesProgressText.value = `Detecting faces on image ${i + 1} of ${fileList.length}...`;
         try {
           newFaceRegions = await detectFaces(img);
+          isFaceScanned = true;
         } catch (err) {
           console.error('Face detection error on added image:', err);
         }
@@ -1749,6 +1751,7 @@ async function handleAdditionalFilesSelect(e: Event) {
         words: taggedWords,
         manualRegions: [],
         faceRegions: newFaceRegions,
+        facesScanned: isFaceScanned,
       };
 
       // 5. Append to localPages
@@ -1780,7 +1783,7 @@ async function handleAdditionalFilesSelect(e: Event) {
   }
 }
 
-// --- Face Detection Toggle ---
+// --- Face Detection Toggle & Scanning ---
 function toggleFaceDetection() {
   enableFaceDetection.value = !enableFaceDetection.value;
   handleFaceDetectionToggle();
@@ -1788,11 +1791,12 @@ function toggleFaceDetection() {
 
 async function handleFaceDetectionToggle() {
   if (enableFaceDetection.value) {
-    if (allFaceRegionsWithIds.value.length === 0) {
+    const unscannedPages = localPages.value.filter((p) => !p.facesScanned);
+    if (unscannedPages.length > 0) {
       isScanningFaces.value = true;
       setToolInfo('Detecting faces with AI…', true);
       try {
-        for (const page of localPages.value) {
+        for (const page of unscannedPages) {
           const img = new Image();
           await new Promise<void>((resolve) => {
             img.onload = () => resolve();
@@ -1801,6 +1805,7 @@ async function handleFaceDetectionToggle() {
           });
           const faces = await detectFaces(img);
           page.faceRegions = faces;
+          page.facesScanned = true;
         }
         disabledFaceIds.value.clear();
         const totalFaces = allFaceRegionsWithIds.value.length;
@@ -1810,13 +1815,19 @@ async function handleFaceDetectionToggle() {
           setToolInfo('No faces detected on document');
         }
       } catch (err) {
+        console.error('Face detection error:', err);
         setToolInfo('Face detection failed');
       } finally {
         isScanningFaces.value = false;
       }
     } else {
       disabledFaceIds.value.clear();
-      setToolInfo('Face detection enabled');
+      const totalFaces = allFaceRegionsWithIds.value.length;
+      if (totalFaces > 0) {
+        setToolInfo(`Face detection enabled (${totalFaces} faces)`);
+      } else {
+        setToolInfo('Face detection enabled');
+      }
     }
   } else {
     setToolInfo('Face detection disabled');

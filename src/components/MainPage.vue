@@ -549,226 +549,219 @@ const onFileSelect = (event: Event) => {
 <template>
   <div class="container mx-auto px-4 py-12 flex flex-col min-h-screen relative">
     
-    <!-- State 1: Verification Screen (Fullscreen Modal) -->
-    <DocumentVerification
-      v-if="!isProcessing && !isVerified && (pages.length > 0 || (fileUrl && (result.length > 0 || detectedRegions.length > 0 || file)))"
-      :pages="pages"
-      :image-url="fileUrl || undefined"
-      :words="result"
-      :document-type="documentType"
-      :detected-regions="detectedRegions"
-      @confirm="handleVerificationConfirm"
-      @cancel="handleVerificationCancel"
-    />
+    <Transition name="state-fade" mode="out-in">
+      <!-- State 1: Verification Screen (Fullscreen Modal) -->
+      <DocumentVerification
+        v-if="!isProcessing && !isVerified && (pages.length > 0 || (fileUrl && (result.length > 0 || detectedRegions.length > 0 || file)))"
+        key="state-verification"
+        :pages="pages"
+        :image-url="fileUrl || undefined"
+        :words="result"
+        :document-type="documentType"
+        :detected-regions="detectedRegions"
+        @confirm="handleVerificationConfirm"
+        @cancel="handleVerificationCancel"
+      />
 
-    <!-- State 2: Dedicated Export Success & Download Page -->
-    <ExportSuccessPage
-      v-else-if="showSuccessPage && exportedBlob"
-      :blob="exportedBlob"
-      :filename="exportedFilename"
-      :original-file-size="originalFileSize"
-      :exported-file-size="exportedFileSize"
-      :stats="exportStats"
-      @download-direct="handleDownloadDirect"
-      @download-option="handleDownloadOption"
-      @edit-again="handleEditAgain"
-      @new-document="resetToHome"
-    />
+      <!-- State 2: Dedicated Export Success & Download Page -->
+      <ExportSuccessPage
+        v-else-if="showSuccessPage && exportedBlob"
+        key="state-success"
+        :blob="exportedBlob"
+        :filename="exportedFilename"
+        :original-file-size="originalFileSize"
+        :exported-file-size="exportedFileSize"
+        :stats="exportStats"
+        @download-direct="handleDownloadDirect"
+        @download-option="handleDownloadOption"
+        @edit-again="handleEditAgain"
+        @new-document="resetToHome"
+      />
 
-    <!-- State 3: Redaction In-Progress Fullscreen Backdrop -->
-    <div
-      v-else-if="isRedacting"
-      class="fixed inset-0 bg-gray-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center"
-    >
-      <div class="bg-gray-900 border border-gray-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full">
-        <div class="w-14 h-14 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4 border border-blue-500/30">
-          <Loader2 class="w-7 h-7 animate-spin text-blue-400" />
+      <!-- State 3: Redaction In-Progress Fullscreen Backdrop -->
+      <div
+        v-else-if="isRedacting"
+        key="state-redacting"
+        class="fixed inset-0 bg-gray-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center"
+      >
+        <div class="bg-gray-900 border border-gray-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full">
+          <div class="w-14 h-14 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4 border border-blue-500/30">
+            <Loader2 class="w-7 h-7 animate-spin text-blue-400" />
+          </div>
+          <h3 class="text-base font-bold text-white mb-1.5">
+            Redacting Document
+          </h3>
+          <p class="text-xs text-gray-300 font-medium leading-relaxed">
+            Permanently removing sensitive text, faces, and blocked areas in local browser memory…
+          </p>
         </div>
-        <h3 class="text-base font-bold text-white mb-1.5">
-          Redacting Document
-        </h3>
-        <p class="text-xs text-gray-300 font-medium leading-relaxed">
-          Permanently removing sensitive text, faces, and blocked areas in local browser memory…
-        </p>
-      </div>
-    </div>
-
-<!-- State 4: Default Initial Upload / Home Screen -->
-    <template v-else>
-      <!-- Header Section -->
-      <div class="text-center mb-8 pt-6">
-        <!-- <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-semibold mb-4">
-          <Sparkles class="w-3.5 h-3.5" />
-          100% Offline & Aman di Peramban Anda
-        </div> -->
-        <h1 class="text-3xl sm:text-4xl font-extrabold mb-3 text-gray-900 dark:text-white tracking-tight">
-          Document Ingestion & PII Redaction
-        </h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Instantly redact sensitive personal data on multi-page PDFs and images without uploading to external servers.
-        </p>
       </div>
 
-      <!-- Engine Selector -->
-      <div class="mb-6 flex justify-center">
-        <div class="relative inline-flex">
-          <button
-            type="button"
-            @click="engineDropdownOpen = !engineDropdownOpen"
-            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md hover:border-gray-400 dark:hover:border-gray-500 transition-all text-sm font-medium text-gray-900 dark:text-white"
-            aria-haspopup="listbox"
-            :aria-expanded="engineDropdownOpen"
-          >
-            <Cpu class="w-4 h-4" :class="activeEngine === 'onnx' ? 'text-blue-500' : 'text-amber-500'" />
-            <span>
-              <template v-if="engineChoice === 'auto'">
-                Auto → {{ activeEngine === 'onnx' ? 'ONNX' : 'Tesseract' }}
-              </template>
-              <template v-else>{{ engineChoice === 'onnx' ? 'ONNX (PP-OCRv5)' : 'Tesseract' }}</template>
-            </span>
-            <ChevronDown class="w-4 h-4 text-gray-500" :class="{ 'rotate-180': engineDropdownOpen }" />
-          </button>
-          <Transition
-            enter-active-class="transition ease-out duration-100"
-            enter-from-class="opacity-0 scale-95"
-            enter-to-class="opacity-100 scale-100"
-            leave-active-class="transition ease-in duration-75"
-            leave-from-class="opacity-100 scale-100"
-            leave-to-class="opacity-0 scale-95"
-          >
-            <div
-              v-if="engineDropdownOpen"
-              class="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-20"
-              role="listbox"
-              @click.outside="engineDropdownOpen = false"
+      <!-- State 4: Default Initial Upload / Home Screen -->
+      <div v-else key="state-home">
+        <!-- Header Section -->
+        <div class="text-center mb-8 pt-6">
+          <h1 class="text-3xl sm:text-4xl font-extrabold mb-3 text-gray-900 dark:text-white tracking-tight">
+            Document Ingestion & PII Redaction
+          </h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
+            Instantly redact sensitive personal data on multi-page PDFs and images without uploading to external servers.
+          </p>
+        </div>
+
+        <!-- Engine Selector -->
+        <div class="mb-6 flex justify-center">
+          <div class="relative inline-flex">
+            <button
+              type="button"
+              @click="engineDropdownOpen = !engineDropdownOpen"
+              class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md hover:border-gray-400 dark:hover:border-gray-500 transition-all text-sm font-medium text-gray-900 dark:text-white"
+              aria-haspopup="listbox"
+              :aria-expanded="engineDropdownOpen"
+            >
+              <Cpu class="w-4 h-4" :class="activeEngine === 'onnx' ? 'text-blue-500' : 'text-amber-500'" />
+              <span>
+                <template v-if="engineChoice === 'auto'">
+                  Auto → {{ activeEngine === 'onnx' ? 'ONNX' : 'Tesseract' }}
+                </template>
+                <template v-else>{{ engineChoice === 'onnx' ? 'ONNX (PP-OCRv5)' : 'Tesseract' }}</template>
+              </span>
+              <ChevronDown class="w-4 h-4 text-gray-500" :class="{ 'rotate-180': engineDropdownOpen }" />
+            </button>
+            <Transition
+              enter-active-class="transition ease-out duration-100"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition ease-in duration-75"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
             >
               <div
-                v-for="opt in ENGINE_OPTIONS"
-                :key="opt.value"
-                @click="setEngineChoice(opt.value)"
-                role="option"
-                :aria-selected="engineChoice === opt.value"
-                class="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                v-if="engineDropdownOpen"
+                class="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-20"
+                role="listbox"
+                @click.outside="engineDropdownOpen = false"
               >
-                <span
-                  :class="[
-                    engineChoice === opt.value ? 'opacity-100' : 'opacity-0',
-                    opt.value === 'onnx' ? 'text-blue-500' : opt.value === 'tesseract' ? 'text-amber-500' : 'text-gray-500',
-                  ]"
-                  class="w-4 h-4 flex items-center justify-center"
+                <div
+                  v-for="opt in ENGINE_OPTIONS"
+                  :key="opt.value"
+                  @click="setEngineChoice(opt.value)"
+                  role="option"
+                  :aria-selected="engineChoice === opt.value"
+                  class="px-3 py-2 text-xs flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  :class="{ 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-semibold': engineChoice === opt.value }"
                 >
-                  <Check class="w-3.5 h-3.5" />
-                </span>
-                <div class="flex-1 text-left min-w-0">
-                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ opt.label }}</p>
-                  <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate">{{ opt.description }}</p>
+                  <div class="min-w-0">
+                    <div class="font-medium text-gray-900 dark:text-white">{{ opt.label }}</div>
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate">{{ opt.description }}</div>
+                  </div>
+                  <span
+                    v-if="opt.value === 'auto'"
+                    class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium"
+                  >
+                    Default
+                  </span>
+                  <span
+                    v-else-if="opt.value === 'onnx' && activeEngine === 'onnx'"
+                    class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium"
+                  >
+                    Active
+                  </span>
+                  <span
+                    v-else-if="opt.value === 'tesseract' && activeEngine === 'tesseract'"
+                    class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-medium"
+                  >
+                    Active
+                  </span>
                 </div>
-                <span
-                  v-if="opt.value === 'auto'"
-                  class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium"
-                >
-                  Default
-                </span>
-                <span
-                  v-else-if="opt.value === 'onnx' && activeEngine === 'onnx'"
-                  class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium"
-                >
-                  Active
-                </span>
-                <span
-                  v-else-if="opt.value === 'tesseract' && activeEngine === 'tesseract'"
-                  class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-medium"
-                >
-                  Active
-                </span>
               </div>
-            </div>
-          </Transition>
+            </Transition>
+          </div>
         </div>
-      </div>
 
-      <!-- Dropzone Area -->
-      <div
-        ref="dropZoneRef"
-        class="border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition-all flex flex-col items-center justify-center cursor-pointer mb-8 relative max-w-2xl mx-auto w-full shadow-sm hover:shadow-md"
-        :class="isOverDropZone ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-[1.01]' : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white/50 dark:bg-gray-800/50'"
-        @click="fileInput?.click()"
-      >
-        <input 
-          ref="fileInput"
-          type="file" 
-          multiple
-          accept="image/jpeg, image/png, application/pdf" 
-          class="hidden" 
-          @change="onFileSelect"
-        />
-        
-        <div class="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
-          <UploadCloud class="w-8 h-8" />
-        </div>
-        <h3 class="text-lg sm:text-xl font-bold mb-1.5 text-gray-900 dark:text-white">
-          Drag & Drop Documents Here
-        </h3>
-        <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Supports multi-page PDFs, JPEG, and PNG. Multiple images can be uploaded together.
-        </p>
-        
-        <button
-          type="button"
-          class="bg-blue-600 text-white hover:bg-blue-700 px-5 py-2.5 rounded-lg font-semibold text-xs sm:text-sm shadow-sm transition-all"
+        <!-- Dropzone Area -->
+        <div
+          ref="dropZoneRef"
+          class="border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition-all flex flex-col items-center justify-center cursor-pointer mb-8 relative max-w-2xl mx-auto w-full shadow-sm hover:shadow-md"
+          :class="isOverDropZone ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-[1.01]' : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white/50 dark:bg-gray-800/50'"
+          @click="fileInput?.click()"
         >
-          Select Document Files
-        </button>
-      </div>
-
-      <!-- Empty State: No text detected -->
-      <div
-        v-if="showEmptyState"
-        class="w-full max-w-2xl mx-auto mb-6 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300"
-        role="alert"
-      >
-        <AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-amber-800 dark:text-amber-200">
-            No text detected
+          <input 
+            ref="fileInput"
+            type="file" 
+            multiple
+            accept="image/jpeg, image/png, application/pdf" 
+            class="hidden" 
+            @change="onFileSelect"
+          />
+          
+          <div class="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+            <UploadCloud class="w-8 h-8" />
+          </div>
+          <h3 class="text-lg sm:text-xl font-bold mb-1.5 text-gray-900 dark:text-white">
+            Drag & Drop Documents Here
+          </h3>
+          <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Supports multi-page PDFs, JPEG, and PNG. Multiple images can be uploaded together.
           </p>
-          <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-            Try switching the OCR engine to Tesseract for better results on this document.
-          </p>
+          
+          <button
+            type="button"
+            class="bg-blue-600 text-white hover:bg-blue-700 px-5 py-2.5 rounded-lg font-semibold text-xs sm:text-sm shadow-sm transition-all"
+          >
+            Select Document Files
+          </button>
         </div>
-        <button
-          type="button"
-          @click="switchToTesseract"
-          class="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors whitespace-nowrap"
+
+        <!-- Empty State: No text detected -->
+        <div
+          v-if="showEmptyState"
+          class="w-full max-w-2xl mx-auto mb-6 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          role="alert"
         >
-          <RotateCcw class="w-3 h-3 inline mr-1" />
-          Try Tesseract
-        </button>
-      </div>
+          <AlertTriangle class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-amber-800 dark:text-amber-200">
+              No text detected
+            </p>
+            <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              Try switching the OCR engine to Tesseract for better results on this document.
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="switchToTesseract"
+            class="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors whitespace-nowrap"
+          >
+            <RotateCcw class="w-3 h-3 inline mr-1" />
+            Try Tesseract
+          </button>
+        </div>
 
-      <!-- Ingestion / Processing Progress Card -->
-      <div
-        v-if="isProcessing"
-        class="w-full max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4"
-      >
-        <div class="flex items-center justify-between">
-          <span class="font-semibold text-sm flex items-center gap-2 text-gray-900 dark:text-white">
-            <Loader2 class="w-4 h-4 animate-spin text-blue-500" />
-            <span>{{ progressPhaseLabel }}</span>
-          </span>
-          <span class="text-sm text-gray-500 dark:text-gray-400 font-mono font-bold">{{ Math.round(progress * 100) }}%</span>
+        <!-- Ingestion / Processing Progress Card -->
+        <div
+          v-if="isProcessing"
+          class="w-full max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4 animate-in fade-in duration-200"
+        >
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-sm flex items-center gap-2 text-gray-900 dark:text-white">
+              <Loader2 class="w-4 h-4 animate-spin text-blue-500" />
+              <span>{{ progressPhaseLabel }}</span>
+            </span>
+            <span class="text-sm text-gray-500 dark:text-gray-400 font-mono font-bold">{{ Math.round(progress * 100) }}%</span>
+          </div>
+          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+            <div
+              class="bg-blue-600 h-full rounded-full transition-all duration-300 ease-out"
+              :style="{ width: `${Math.max(4, Math.round(progress * 100))}%` }"
+            ></div>
+          </div>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 text-center font-mono">
+            {{ progressDetail }}
+          </p>
         </div>
-        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-          <div
-            class="bg-blue-600 h-full rounded-full transition-all duration-300"
-            :style="{ width: `${progress * 100}%` }"
-          ></div>
-        </div>
-        <p class="text-[11px] text-gray-500 dark:text-gray-400 text-center font-mono">
-          {{ progressDetail }}
-        </p>
       </div>
-    </template>
+    </Transition>
 
     <!-- Modal: Choice for PDF Mode (Scanned/Image-heavy vs Text) -->
     <div
@@ -826,3 +819,20 @@ const onFileSelect = (event: Event) => {
 
   </div>
 </template>
+
+<style scoped>
+.state-fade-enter-active,
+.state-fade-leave-active {
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+.state-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.state-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+</style>
