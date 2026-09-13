@@ -1,36 +1,35 @@
 <template>
   <div class="fixed inset-0 w-full h-full bg-gray-950 z-50 flex flex-col overflow-hidden select-none text-gray-200 verification-theme">
-    <!-- Top Header Bar: Sleek Dark Theme (Clean & Minimal: Title, Status, Cancel & Export) -->
-    <header class="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-800 bg-gray-900 flex justify-between items-center z-20 flex-shrink-0 shadow-md">
-      <!-- Left: Title & Badge -->
-      <div class="flex items-center gap-2">
-        <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.7)]"></span>
-        <h2 class="hidden sm:inline text-sm sm:text-base font-bold text-white tracking-tight">
-          Document Verification &amp; Redaction
+    <!-- Top Header Bar: Sleek Dark Theme (Clean & Minimal: Badges, Cancel & Export) -->
+    <header class="px-2 sm:px-4 py-1.5 sm:py-2 border-b border-gray-800 bg-gray-900 flex justify-between items-center z-20 flex-shrink-0 shadow-md min-h-[42px] sm:min-h-[48px] gap-2">
+      <!-- Left: Title & Badges -->
+      <div class="flex items-center gap-1 sm:gap-2 min-w-0 flex-shrink">
+        <h2 class="hidden md:inline text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+          Document Verification
         </h2>
-        <span class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 font-semibold uppercase tracking-wider">
-          {{ documentType === 'text-pdf' ? 'Text PDF' : documentType === 'image-pdf' ? 'Scanned PDF' : 'Image' }}
+        <span class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+          {{ documentType === 'text-pdf' ? 'PDF' : documentType === 'image-pdf' ? 'Scan' : 'Image' }}
         </span>
         <span
-          class="text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider flex items-center gap-1"
+          class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider flex items-center gap-1 whitespace-nowrap flex-shrink-0"
           :class="engineBadgeClass"
           :title="engineBadgeTitle"
         >
-          <component :is="activeEngine === 'onnx' ? Cpu : Loader2" class="w-3 h-3" />
-          {{ engineBadgeText }}
+          <component :is="activeEngine === 'onnx' ? Cpu : Loader2" class="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
+          <span>{{ engineBadgeText }}</span>
         </span>
       </div>
 
-      <!-- Right: Action Buttons (Cancel & Confirm Export) -->
-      <div class="flex items-center gap-2">
+      <!-- Right: Action Buttons (Cancel & Export) -->
+      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <!-- Cancel Button -->
         <button
           type="button"
           @click="$emit('cancel')"
-          class="h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 active:scale-95 rounded-lg transition-colors border border-gray-700 flex items-center justify-center gap-1.5 shadow-sm"
+          class="h-7 sm:h-8 px-2 sm:px-3 text-[11px] sm:text-xs font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 active:scale-95 rounded-lg transition-colors border border-gray-700 flex items-center justify-center gap-1 shadow-sm flex-shrink-0"
           title="Cancel and return to home"
         >
-          <X class="w-4 h-4 text-gray-400" />
+          <X class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
           <span class="hidden xs:inline">Cancel</span>
         </button>
 
@@ -38,11 +37,11 @@
         <button
           type="button"
           @click="handleConfirm"
-          class="h-8 sm:h-9 px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+          class="h-7 sm:h-8 px-2.5 sm:px-3.5 text-[11px] sm:text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-lg shadow-md transition-all flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0"
           title="Confirm redaction and export document"
         >
-          <Check class="w-4 h-4 text-white stroke-[2.5]" />
-          <span>Confirm &amp; Export</span>
+          <Check class="w-3.5 h-3.5 text-white stroke-[2.5] flex-shrink-0" />
+          <span class="whitespace-nowrap"><span class="hidden sm:inline">Confirm &amp; </span>Export</span>
         </button>
       </div>
     </header>
@@ -53,6 +52,16 @@
       <!-- Canvas Area Wrapper (Strictly bounds the scrollable canvas and its floating toolbar within the visible canvas frame) -->
       <div class="relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-gray-950">
         
+        <!-- Floating Quick Guide Button (Mobile only, top-right of canvas; on desktop it is inside the floating toolbar) -->
+        <button
+          type="button"
+          @click="showHelpGuide = true"
+          class="lg:hidden absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 z-30 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-900/60 hover:bg-gray-900/90 active:scale-95 text-gray-400 hover:text-blue-400 border border-gray-700/50 hover:border-blue-500/40 backdrop-blur-md shadow-lg transition-all flex items-center justify-center"
+          title="Open Tool & Redaction Guide (?)"
+        >
+          <HelpCircle class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        </button>
+
         <!-- In-Canvas Processing Overlay for Added Images (No page reload, smooth & centered) -->
         <transition
           enter-active-class="transition duration-200 ease-out"
@@ -499,7 +508,21 @@
 
             <div class="h-5 w-px bg-gray-700 mx-0.5 flex-shrink-0"></div>
 
-            <!-- Tool 10: Toggle Sidebar / Control Panel (Always Prioritized & Visible) -->
+            <!-- Tool 10: Quick Help / Guide -->
+            <button
+              type="button"
+              @click="showHelpGuide = true"
+              @mouseenter="setToolInfo('Quick Guide: How to use tools and redaction')"
+              @mouseleave="clearToolInfo"
+              @pointerdown="setToolInfo('Quick Guide: How to use tools and redaction', true)"
+              @pointerup="clearToolInfoLater"
+              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-blue-400 hover:bg-blue-900/40 hover:text-blue-300 transition-all relative flex-shrink-0"
+              title="Tool & Redaction Guide (?)"
+            >
+              <HelpCircle class="w-4 h-4" />
+            </button>
+
+            <!-- Tool 11: Toggle Sidebar / Control Panel (Always Prioritized & Visible) -->
             <button
               type="button"
               @click="togglePanel"
@@ -687,6 +710,15 @@
             </div>
           </div>
 
+          <!-- Detected Faces Empty State (When 0 faces detected) -->
+          <div v-else-if="enableFaceDetection && allFaceRegionsWithIds.length === 0 && !isScanningFaces" class="flex flex-col border-b border-gray-800 pb-3.5">
+            <div class="p-2.5 bg-gray-850/50 rounded-md border border-dashed border-gray-800 text-center">
+              <p class="text-[11px] text-gray-400">
+                No faces detected automatically. Use <button type="button" class="text-red-400 font-semibold hover:underline" @click="setInteractionMode('block', 'Block Mode: Drag a box to redact photos')">Manual Block Tool</button> to censor photos.
+              </p>
+            </div>
+          </div>
+
           <!-- Sensitive Data Patterns Detected via Regex -->
           <div class="flex flex-col border-b border-gray-800 pb-3.5">
             <div class="flex items-center justify-between mb-2">
@@ -739,9 +771,26 @@
               </label>
             </div>
 
-            <div v-else class="p-3 bg-gray-850/50 rounded-md border border-dashed border-gray-800 text-center">
-              <p class="text-xs text-gray-400">
-                No automatic sensitive patterns (ID, Phone, Email, Date) detected.
+            <div v-else class="p-3.5 bg-gray-850/70 rounded-lg border border-dashed border-gray-700/80 text-center space-y-2">
+              <div class="flex items-center justify-center gap-1.5 text-amber-400/90 text-xs font-semibold">
+                <Info class="w-3.5 h-3.5 flex-shrink-0" />
+                <span>No automatic sensitive patterns detected</span>
+              </div>
+              <p class="text-[11px] text-gray-400 leading-relaxed">
+                Documents with unique layouts, non-Latin text, or foreign IDs can be redacted manually. Please select or block sensitive areas.
+              </p>
+              <div class="pt-0.5">
+                <button
+                  type="button"
+                  @click="setInteractionMode('block', 'Block Mode: Drag a box to redact photos, signatures, or text')"
+                  class="w-full py-1.5 px-3 bg-red-600/90 hover:bg-red-600 active:scale-98 text-white rounded-md text-xs font-semibold shadow transition-all flex items-center justify-center gap-1.5 border border-red-500/40"
+                >
+                  <Square class="w-3.5 h-3.5" />
+                  <span>Select / Block Manually</span>
+                </button>
+              </div>
+              <p class="text-[10px] text-gray-500 italic">
+                💡 Tip: You can also tap directly on any word box on the document to redact it.
               </p>
             </div>
           </div>
@@ -831,7 +880,142 @@
           </div>
         </div>
       </aside>
+
+      <!-- Mobile Collapsed Bottom Sheet Dock (Shown when panel is closed on mobile, allows 1-tap reopening) -->
+      <div
+        v-if="!isPanelOpen"
+        class="lg:hidden border-t border-gray-800 bg-gray-900/95 backdrop-blur-md px-3.5 py-2 flex items-center justify-between z-20 shadow-2xl flex-shrink-0 cursor-pointer hover:bg-gray-850 active:bg-gray-800 transition-colors"
+        @click="isPanelOpen = true"
+      >
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-md bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+            <SlidersHorizontal class="w-3.5 h-3.5" />
+          </div>
+          <span class="text-xs font-semibold text-gray-200">
+            Settings &amp; Redaction Panel
+          </span>
+        </div>
+        <div class="flex items-center gap-1 text-[11px] text-blue-400 font-semibold bg-blue-950/60 px-2.5 py-0.5 rounded-full border border-blue-800/40">
+          <span>Open Panel</span>
+          <ChevronUp class="w-3.5 h-3.5 animate-bounce" />
+        </div>
+      </div>
     </div>
+
+    <!-- Interactive Quick Help & Guide Modal -->
+    <transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 scale-95"
+      enter-to-class="opacity-100 scale-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100 scale-100"
+      leave-to-class="opacity-0 scale-95"
+    >
+      <div
+        v-if="showHelpGuide"
+        class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm"
+        @click.self="showHelpGuide = false"
+      >
+        <div class="bg-gray-900 border border-gray-700/80 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-dark-scrollbar text-gray-200">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                <HelpCircle class="w-4 h-4" />
+              </div>
+              <div>
+                <h3 class="font-bold text-base text-white">Tool &amp; Redaction Guide</h3>
+                <p class="text-xs text-gray-400">How to use manual tools and automated features</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="showHelpGuide = false"
+              class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="space-y-2.5 text-xs">
+            <!-- Item 1: Tap to toggle -->
+            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-gray-850/70 border border-gray-800">
+              <div class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Hand class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="font-semibold text-white">1. Tap Word to Redact</h4>
+                <p class="text-gray-400 text-[11px] mt-0.5">Click or tap any highlighted word box directly on the document canvas to quickly toggle redaction on or off.</p>
+              </div>
+            </div>
+
+            <!-- Item 2: Manual Block -->
+            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-gray-850/70 border border-gray-800">
+              <div class="w-7 h-7 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Square class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="font-semibold text-white">2. Manual Block Mode (Drag Box)</h4>
+                <p class="text-gray-400 text-[11px] mt-0.5">Select the Square tool and drag freehand rectangular boxes over signatures, stamps, unrecognized text, or profile photos.</p>
+              </div>
+            </div>
+
+            <!-- Item 3: Targeted Area Scan -->
+            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-gray-850/70 border border-gray-800">
+              <div class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Scan class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="font-semibold text-white">3. Targeted Area Scan (OCR Re-Scan)</h4>
+                <p class="text-gray-400 text-[11px] mt-0.5">Drag a box over low-contrast, blurry, or noisy text regions to re-run OCR with adaptive binarization.</p>
+              </div>
+            </div>
+
+            <!-- Item 4: AI Face Detection -->
+            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-gray-850/70 border border-gray-800">
+              <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <UserCheck class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="font-semibold text-white">4. AI Face Detection</h4>
+                <p class="text-gray-400 text-[11px] mt-0.5">Automatically scan, detect, and redact portrait faces on identity cards, badges, and document photos.</p>
+              </div>
+            </div>
+
+            <!-- Item 5: Add Image Pages -->
+            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-gray-850/70 border border-gray-800">
+              <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Plus class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="font-semibold text-white">5. Add Image Pages</h4>
+                <p class="text-gray-400 text-[11px] mt-0.5">Click the Plus button to append additional image pages and export them combined as a single Flat PDF.</p>
+              </div>
+            </div>
+
+            <!-- Item 6: Rotate Document -->
+            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-gray-850/70 border border-gray-800">
+              <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <RotateCw class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="font-semibold text-white">6. Rotate 90°</h4>
+                <p class="text-gray-400 text-[11px] mt-0.5">Rotate your pages clockwise. All word and block coordinates are mathematically recalculated automatically.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-end">
+            <button
+              type="button"
+              @click="showHelpGuide = false"
+              class="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow transition-all"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -853,8 +1037,11 @@ import {
   UserCheck,
   SlidersHorizontal,
   ChevronDown,
+  ChevronUp,
   PanelRightClose,
   Cpu,
+  HelpCircle,
+  Info,
 } from 'lucide-vue-next';
 import type { SpatialWord } from '~/utils/ocrEngine';
 import { processRegion, processDocument } from '~/utils/ocrEngine';
@@ -968,6 +1155,9 @@ const scaledContainerHeight = computed(() => {
 // --- Interaction Mode State ---
 type InteractionMode = 'pan' | 'block' | 'scan';
 const interactionMode = ref<InteractionMode>('pan');
+
+// --- Quick Help Guide Modal State ---
+const showHelpGuide = ref(false);
 
 // --- Active Tool Info / Tooltip Banner ---
 const activeToolInfo = ref<string | null>(null);

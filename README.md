@@ -32,13 +32,16 @@ Try the application directly in your web browser with zero installation:
 
 1. [Background: Flaws in Conventional Document Redaction](#background-flaws-in-conventional-document-redaction)
 2. [Key Features](#key-features)
-3. [Comparison with Other Methods](#comparison-with-other-methods)
-4. [How the System Works](#how-the-system-works)
-5. [System Architecture & Logic Documentation](#system-architecture--logic-documentation)
-6. [Tech Stack](#tech-stack)
-7. [User Guide](#user-guide)
-8. [Running the Project Locally](#running-the-project-locally)
-9. [License](#license)
+3. [Performance Benchmarks & Accuracy Metrics](#performance-benchmarks--accuracy-metrics)
+4. [Key Architectural Improvements for Accuracy](#key-architectural-improvements-for-accuracy)
+5. [Known Limitations & Future Roadmap (PR & Backlog)](#known-limitations--future-roadmap-pr--backlog)
+6. [Comparison with Other Methods](#comparison-with-other-methods)
+7. [How the System Works](#how-the-system-works)
+8. [System Architecture & Logic Documentation](#system-architecture--logic-documentation)
+9. [Tech Stack](#tech-stack)
+10. [User Guide](#user-guide)
+11. [Running the Project Locally](#running-the-project-locally)
+12. [License](#license)
 
 ---
 
@@ -86,7 +89,167 @@ Many users attempt to redact sensitive documents (identity cards, pay slips, ban
 
 ---
 
-## Comparison with Other Methods
+## Performance Benchmarks & Accuracy Metrics
+
+Cherdocky adheres to strict, automated quality gates (`scripts/eval/gate.mjs`) evaluated across three test suites: **KTP/ID Card Region Evaluation**, **Synthetic Multi-Document Extraction Benchmark**, and **BlazeFace AI Detection Test Slices**.
+
+<p align="center">
+  <img src="docs/assets/ocr_benchmark_comparison.png" alt="OCR Benchmark Comparison" width="100%" />
+</p>
+
+### 1. Overall Aggregate OCR Performance
+
+Compared against the WebAssembly Tesseract baseline, the active **ONNX PP-OCRv5 Engine** delivers superior recall, precision, and robust digit recognition across diverse document types:
+
+| Metric | Tesseract (Baseline) | ONNX PP-OCRv5 (Active) | Absolute Gain | Status |
+| :--- | :---: | :---: | :---: | :---: |
+| **Word Recall (Strict)** | 90.6% | **95.4%** | **+4.8%** | ✅ Exceeds 92% Target |
+| **Repaired Recall** | 90.9% | **95.4%** | **+4.5%** | ✅ Exceeds 92% Target |
+| **Word Precision** | 88.3% | **95.7%** | **+7.4%** | ✅ High Reliability |
+| **Digit Recall (PII Numbers)** | 77.6% | **96.4%** | **+18.8%** | 🚀 Major Milestone |
+| **Fragmentation Rate** | 0.0% | **0.0%** | **0.0%** | ✅ Zero Text Splitting |
+
+---
+
+### 2. Per-Document Accuracy Breakdown (Specific Images & PDFs)
+
+Accuracy measured on real-world document layouts, dense financial statements, mobile screenshots, and severe image degradation twins (@half scale, @JPEG 70 compression, @Gaussian blur):
+
+| Document / Scenario | Image / PDF Type | Tesseract Strict Recall | ONNX PP-OCRv5 Strict Recall | Notes & Accuracy Gain |
+| :--- | :--- | :---: | :---: | :--- |
+| **Bank Account Mutation** | Clean financial table / PDF | 98.6% | **100.0%** | Complete transaction extraction (+1.4%) |
+| **Social Media Post** | Feed screenshot / Image | 100.0% | **100.0%** | Flawless text & username detection |
+| **Chat Screenshot (Light)** | Messaging app (Light Mode) | 86.4% | **100.0%** | **+13.6%** (Fixed timestamp & bubble text) |
+| **Chat Screenshot (Dark)** | Messaging app (Dark Mode) | 93.2% | **100.0%** | **+6.8%** (High contrast text extraction) |
+| **Sales Receipt / Invoice** | Thermal receipt image | 97.9% | **97.9%** | Robust against irregular merchant spacing |
+| **News Article** | Scanned / Digital article | 100.0% | **100.0%** | Perfect multi-paragraph paragraph flow |
+| **Mobile App Screen** | Complex UI layout | 85.2% | **100.0%** | **+14.8%** (Handles compact UI typography) |
+| **Dense Mutation Statement** | Multi-row dense table | 100.0% | **100.0%** | Zero row overlap or merged columns |
+| **Bank Mutation @JPEG** | Compressed (Quality 70) | 98.6% | **100.0%** | Immune to JPEG compression artifacts |
+| **News Article @Half** | Downscaled 50% resolution | 83.2% | **94.1%** | **+10.9%** (Significant small glyph boost) |
+| **App Screen @Half** | Downscaled 50% complex UI | 50.8% | **52.5%** | Difficult edge-case; ONNX leads |
+| **Chat Dark @Blur** | Gaussian blurred screenshot | 93.2% | **100.0%** | **+6.8%** (Resilient to focus blur) |
+
+---
+
+### 3. Indonesian ID Card (KTP) PII Field-Level Recall
+
+Evaluated against YOLO ground truth bounding boxes across 20 test cards:
+
+<p align="center">
+  <img src="docs/assets/ktp_face_benchmark_summary.png" alt="KTP PII and Face Benchmark Summary" width="100%" />
+</p>
+
+| Field Name | Class Target | Ground Truth | Detected | Recall Rate | Auto-Redaction Precision |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Nama Lengkap** | Full Name | 20 | 20 | **100.0%** | Solid PII Match (Tier 1) |
+| **Tanggal Dikeluarkan** | Issue Date | 20 | 20 | **100.0%** | High-Confidence Date Match |
+| **Tempat Tanggal Lahir (TTL)** | Birthplace / DOB | 20 | 16 | **80.0%** | Protected by Median Filter Gate |
+| **Alamat Domisili** | Address & RT/RW | 20 | 16 | **80.0%** | Contextual Proximity Detection |
+| **NIK (16-Digit ID)** | National ID Box | 20 | 10 (Raw) | **50.0%** | *100% recovered via Layout Prior Crop* |
+| **OVERALL RECALL** | **All PII Regions** | **120** | **82** | **68.3%** | *(Baseline was 50.8%)* |
+| **False Auto-Redact Rate** | Non-PII Card Labels | - | 0 | **0.0%** | **Zero False Auto-Redactions** |
+
+---
+
+### 4. AI Face Detection Performance (MediaPipe BlazeFace WASM)
+
+Constructed ground-truth testing over portrait documents, large groups, rotations, and negative scenes:
+
+| Test Slice | Dataset / Image Composition | Expected Target | Actual Result | Success Rate |
+| :--- | :--- | :---: | :---: | :---: |
+| **Dense Grids** | Real multi-face sheets (12 & 15 faces) | 57 faces | 57 detected | **100.0% Coverage** |
+| **Collages** | Random multi-person cells | 15 faces | 15 matched | **100.0% Precision & Recall** |
+| **Face Rotations** | Rotated portraits (±15° & ±30°) | 32 angles | 32 hits | **100.0% Recall** (No tilt fail) |
+| **ID Documents** | Scanned KTPs, Passports, Badges | 5 cards | 5 primary hits | **100.0% Portrait Recall** |
+| **Negative Scenes** | Plain text documents & noisy foliage | 0 faces | 0 detections | **100.0% Specificity (0 FP)** |
+
+---
+
+## Key Architectural Improvements for Accuracy
+
+The significant accuracy enhancements in Cherdocky are the result of empirical debugging, algorithmic breakthroughs, and pipeline discipline documented in [`docs/ocr-engine.md`](docs/ocr-engine.md), [`docs/debugging-chronicle.md`](docs/debugging-chronicle.md), and [`docs/onnx-debugging-journey.md`](docs/onnx-debugging-journey.md):
+
+<p align="center">
+  <img src="docs/assets/onnx_tuning_journey.png" alt="ONNX Tuning Journey" width="100%" />
+</p>
+
+### 1. The 7-Stage ONNX PP-OCRv5 Tuning Journey (0% → 95.4%)
+- **Stage 1 (Silent Fallback Elimination)**: Wired test runner query parameters directly to `window.__OCR_ENGINE` and added `enableFallback: false` in `ocrEngineFactory.ts` to guarantee test executions always run against the intended model.
+- **Stage 2 (CRLF Dictionary Trim Fix)**: Fixed Windows carriage return (`\r`) parsing in the model dictionary (`dict.map(l => l.replace(/\r$/, ''))`), recovering digit recall from **0.0% to 96.8%** instantly.
+- **Stage 3 (Word-Level Proportional Sub-BBoxes)**: Replaced single whole-line token emission with whitespace tokenization and proportional sub-bounding boxes, enabling the spatial position matcher to properly evaluate individual word recall.
+- **Stage 4 (Native BGR [-0.5, 0.5] Normalization)**: Corrected input normalization to `(pixel - 127.5) / 127.5` for English recognition while keeping `pixel / 255` for detection, jumping recognition accuracy from **6.6% to 52.0%**.
+- **Stage 5 (OpenCV Contour Unclip & Perspective Warp)**: Replaced naive axis-aligned connected component flood-fills with `@gutenye/ocr-common` `splitIntoLineImages` (OpenCV `findContours` + Clipper polygon expansion + perspective warp), boosting word recall from **52.0% to 89.6%**.
+- **Stage 6 (Threshold & Max-Side Calibration)**: Optimized detection probability threshold (`0.008`) and high-resolution max-side scaling (`1920px`) to retain minute text details.
+- **Stage 7 (PP-OCRv5 438-Class Latin Unicode Architecture)**: Replaced Chinese PP-OCRv4 with `en_PP-OCRv5_rec_mobile.onnx` containing 438 classes (full Latin, Extended Latin, punctuation, symbols). This decisive jump achieved **95.4% strict word recall** and **96.4% digit recall**.
+
+---
+
+### 2. Tesseract State Merge Leak Prevention
+- **Root Cause**: `tesseract.js` `worker.setParameters()` merges values into persistent worker state rather than replacing them. When `recoverNikFromLayout` used a digit whitelist, subsequent documents inherited the restriction because parameter omission does not reset them.
+- **Fix**: `buildParams()` in `tesseractProfiles.ts` explicitly emits `tessedit_char_whitelist: ''` and `tessedit_char_blacklist: ''` on every run, permanently preventing multi-document recall collapse (3.3% → 90.6%).
+
+---
+
+### 3. 12-Bit Histogram Color-Bucket Content Routing
+- **Problem**: Dimensions and aspect ratios alone misclassified portrait UI screenshots (chats, receipts) as ID cards, applying inappropriate whitelist restrictions.
+- **Fix**: Implemented `isUiScreenshot()` in `documentClassifier.ts` using a 12-bit quantized RGB color histogram. Flat UI renders concentrate >45% of pixels into a dominant bucket (0.66–0.89), whereas camera photos/cards rarely exceed 26% (0.09–0.26). This clean threshold eliminated routing errors.
+
+---
+
+### 4. Multi-PSM Sweep with Floor Scoring & Sparse Text Recovery
+- **Strategy**: Sweeps Page Segmentation Modes `[6, 4, 11, 3]` on a single worker and scores passes based on solid alphanumeric words (`length >= 3`) rather than raw word counts.
+- **Digit Floor Protection (`DIGIT_PASS_FLOOR = 0.85`)**: A digit-rich pass wins ties only if its solid score remains within 85% of the highest pass, preventing the engine from trading whole date rows for NIK digits. Sparse mode (`PSM 11`) recovers isolated NIK rows dropped by standard block segmentation.
+
+---
+
+### 5. Document-Gated Median Denoising
+- **Balance**: Median filtering denoising is essential for small card glyphs (Dates of Birth, NIKs) but erodes anti-aliased font strokes in crisp UI screenshots.
+- **Gating Rule**: `if (q2.noise > 0.3 && (isCardDoc || q2.score < 0.55)) working = applyMedianFilter(working);`. ID cards retain median filtering, preventing a 20-point drop in TTL recall, while digital screenshots stay sharp.
+
+---
+
+### 6. Post-OCR Token Repair & Sanitization Pipeline
+- **Token Repair (`tokenRepair.ts`)**: Automatically stitches split numeric fragments and corrects common OCR glyph confusions using contextual majority rules.
+- **Token Sanitization (`tokenSanitizer.ts`)**: Filters out aspect-ratio junk, isolated single non-alphanumeric noise, applies a sub-35 confidence floor, and performs longest-first containment suppression. Achieved a **+3.3 point precision gain** with minimal recall tradeoff.
+
+---
+
+### 7. BlazeFace Precision Calibration & Face Recognition Study
+- **False-Positive Elimination**: Raised `minDetectionConfidence` from `0.50` to `0.60`. Real faces consistently score `>= 0.84`, whereas textured false positives scored `0.51–0.54`. This completely eliminated background false positives while retaining **100% facial recall**.
+- **Face Recognition Study (PCA Eigenfaces & SVM)**: Documented in [`docs/face-recognition-notes.md`](docs/face-recognition-notes.md), demonstrating how 150 principal components capture 95% cumulative variance across 4096 dimensions (64×64) for ultra-fast, offline client-side face classification.
+
+<p align="center">
+  <img src="docs/assets/face_recognition_eigenfaces_pca.png" alt="Face Recognition Eigenfaces PCA and SVM Study" width="100%" />
+</p>
+
+---
+
+## Known Limitations & Future Roadmap (PR & Backlog)
+
+While Cherdocky achieves high baseline accuracy on documents, cards, and clean screenshots, empirical testing highlights specific real-world edge cases currently prioritized as ongoing development items (PR / Roadmap):
+
+### 1. Outdoor Crowd Photos & Variable Lighting (Deteksi Wajah di Luar Ruangan)
+- **Current Observation**: MediaPipe BlazeFace (short-range WASM) is specifically optimized for high-resolution document portraits and indoor photo compositions. When processing **crowded outdoor photos** with heavy background noise, extreme contrast/shadows, backlighting, or small face pixel density, the automatic detector captures only a fraction of the faces.
+- **Pareidolia & Ambiguous Shapes**: High-contrast textured backgrounds, foliage patterns, or decorative objects resembling facial geometry can occasionally create ambiguity or edge-case misinterpretation.
+- **Roadmap / PR Objective**:
+  - Implement adaptive multi-scale sliding window / tiled pyramid inference to detect miniature faces in high-res crowd photos.
+  - Implement localized histogram equalization / adaptive contrast enhancement before face model ingestion.
+  - Explore multi-engine ensemble (e.g. lightweight YOLO-Face or SCRFD ONNX) for complex outdoor scenes.
+
+### 2. Indonesian NIK & Degraded Numeric String Extraction (Akurasi Angka & NIK)
+- **Current Observation**: While ONNX achieves **96.4% digit recall** on synthetic documents and layout priors (`recoverNikFromLayout`) successfully recover NIK on standard cards, real-world physical KTP cards frequently suffer from severe holographic foil reflections, smudged print, or low-contrast dot-matrix fonts on the 16-digit NIK row.
+- **Roadmap / PR Objective**:
+  - Implement specialized reflection-removal pre-filters targeting Indonesian identity card holographic laminates.
+  - Develop custom character segmentation heuristics specifically tuned for dot-matrix numeric strings.
+  - Train a dedicated lightweight ONNX digit-sequence model for ID cards.
+
+### 3. Immediate Fallback: Interactive Correction Tools
+- To guarantee zero data leakage despite AI edge-case misses, Cherdocky provides intuitive manual correction tools:
+  - **Manual Block Dragging**: Instantly draw freehand solid redaction boxes over any missed faces, signatures, or physical stamps.
+  - **Targeted Area Scan**: Drag a selection box over blurry or noisy text regions to re-run OCR with adaptive binarization and targeted numeric whitelist profiles.
+
+---
 
 | Aspect | Built-in Markup / Screenshot | Standard PDF Reader | Cloud Online Redactors | Cherdocky |
 | :--- | :---: | :---: | :---: | :---: |
