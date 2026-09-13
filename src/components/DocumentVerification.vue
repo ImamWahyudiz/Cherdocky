@@ -508,21 +508,7 @@
 
             <div class="h-5 w-px bg-gray-700 mx-0.5 flex-shrink-0"></div>
 
-            <!-- Tool 10: Quick Help / Guide -->
-            <button
-              type="button"
-              @click="showHelpGuide = true"
-              @mouseenter="setToolInfo('Quick Guide: How to use tools and redaction')"
-              @mouseleave="clearToolInfo"
-              @pointerdown="setToolInfo('Quick Guide: How to use tools and redaction', true)"
-              @pointerup="clearToolInfoLater"
-              class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-blue-400 hover:bg-blue-900/40 hover:text-blue-300 transition-all relative flex-shrink-0"
-              title="Tool & Redaction Guide (?)"
-            >
-              <HelpCircle class="w-4 h-4" />
-            </button>
-
-            <!-- Tool 11: Toggle Sidebar / Control Panel (Always Prioritized & Visible) -->
+            <!-- Tool 10: Toggle Sidebar / Control Panel (Always Prioritized & Visible) -->
             <button
               type="button"
               @click="togglePanel"
@@ -880,26 +866,6 @@
           </div>
         </div>
       </aside>
-
-      <!-- Mobile Collapsed Bottom Sheet Dock (Shown when panel is closed on mobile, allows 1-tap reopening) -->
-      <div
-        v-if="!isPanelOpen"
-        class="lg:hidden border-t border-gray-800 bg-gray-900/95 backdrop-blur-md px-3.5 py-2 flex items-center justify-between z-20 shadow-2xl flex-shrink-0 cursor-pointer hover:bg-gray-850 active:bg-gray-800 transition-colors"
-        @click="isPanelOpen = true"
-      >
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-md bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-            <SlidersHorizontal class="w-3.5 h-3.5" />
-          </div>
-          <span class="text-xs font-semibold text-gray-200">
-            Settings &amp; Redaction Panel
-          </span>
-        </div>
-        <div class="flex items-center gap-1 text-[11px] text-blue-400 font-semibold bg-blue-950/60 px-2.5 py-0.5 rounded-full border border-blue-800/40">
-          <span>Open Panel</span>
-          <ChevronUp class="w-3.5 h-3.5 animate-bounce" />
-        </div>
-      </div>
     </div>
 
     <!-- Interactive Quick Help & Guide Modal -->
@@ -1037,7 +1003,6 @@ import {
   UserCheck,
   SlidersHorizontal,
   ChevronDown,
-  ChevronUp,
   PanelRightClose,
   Cpu,
   HelpCircle,
