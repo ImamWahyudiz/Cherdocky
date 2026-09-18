@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, PDFRawStream } from 'pdf-lib';
+import { PDFDocument, rgb, PDFRawStream, PDFArray, decodePDFRawStream } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import type { SpatialWord } from './ocrEngine';
 import { findContextualPIIWordIndices, type PIIType } from './piiDetector';
@@ -73,7 +73,9 @@ function applyPixelRedaction(
   const autoIndices = findContextualPIIWordIndices(words, activeTypes, customText);
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
-    if (word.forceRedact || autoIndices.has(i)) {
+    const isRedacted =
+      word.forceRedact !== undefined ? word.forceRedact : autoIndices.has(i);
+    if (isRedacted) {
       ctx.fillRect(
         word.x * coordScale,
         word.y * coordScale,
@@ -122,19 +124,44 @@ function scrubTextFromPdfDoc(pdfDoc: PDFDocument, sensitiveTexts: string[]) {
       const contents = (page.node as any).Contents();
       if (!contents) continue;
 
-      const streamRefs = Array.isArray(contents) ? contents : [contents];
+      const streamRefs = contents instanceof PDFArray
+        ? contents.asArray()
+        : Array.isArray(contents)
+        ? contents
+        : [contents];
       for (const ref of streamRefs) {
         const stream = pdfDoc.context.lookup(ref);
         if (stream instanceof PDFRawStream) {
-          const rawBytes = stream.getContents();
+          let rawBytes: Uint8Array;
+          try {
+            rawBytes = decodePDFRawStream(stream).decode();
+          } catch (_) {
+            rawBytes = stream.getContents();
+          }
           let text = new TextDecoder('latin1').decode(rawBytes);
           let modified = false;
 
           for (const s of uniqueTexts) {
+            // Literal string replacement
             if (text.includes(s)) {
-              // Replace literal occurrences with spaces of identical length
               const replacement = ' '.repeat(s.length);
               text = text.split(s).join(replacement);
+              modified = true;
+            }
+
+            // Hex-encoded string replacement in PDF streams (e.g. <68656C6C6F>)
+            const hexS = Array.from(new TextEncoder().encode(s))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('');
+            const hexUpper = hexS.toUpperCase();
+            const hexLower = hexS.toLowerCase();
+            const hexRep = '20'.repeat(s.length);
+
+            if (text.includes(hexUpper)) {
+              text = text.split(hexUpper).join(hexRep);
+              modified = true;
+            } else if (text.includes(hexLower)) {
+              text = text.split(hexLower).join(hexRep);
               modified = true;
             }
           }
@@ -190,7 +217,7 @@ export async function redactNativePdfText(
 
     for (const { word, index } of pageWordEntries) {
       const isRedacted =
-        word.forceRedact || autoIndices.has(index);
+        word.forceRedact !== undefined ? word.forceRedact : autoIndices.has(index);
 
       if (isRedacted) {
         sensitiveStringsToScrub.push(word.text);
@@ -231,8 +258,24 @@ export async function redactNativePdfText(
     }
   }
 
-  if (sensitiveStringsToScrub.length > 0) {
-    scrubTextFromPdfDoc(pdfDoc, sensitiveStringsToScrub);
+  // Texts that belong to unredacted words must NEVER be scrubbed from the PDF text stream
+  const unredactedWordTexts = new Set(
+    words
+      .filter((w, i) => {
+        const isRedacted = w.forceRedact !== undefined ? w.forceRedact : autoIndices.has(i);
+        return !isRedacted;
+      })
+      .map((w) => (w.text || '').trim().toLowerCase())
+      .filter((t) => t.length > 0)
+  );
+
+  const safeStringsToScrub = sensitiveStringsToScrub.filter((t) => {
+    const trimmed = t.trim();
+    return trimmed.length >= 3 && !unredactedWordTexts.has(trimmed.toLowerCase());
+  });
+
+  if (safeStringsToScrub.length > 0) {
+    scrubTextFromPdfDoc(pdfDoc, safeStringsToScrub);
   }
 
   // Compress object streams to minimize vector PDF size
