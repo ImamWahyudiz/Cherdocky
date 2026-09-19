@@ -2,6 +2,18 @@ import { PDFDocument, rgb, PDFRawStream, PDFArray, decodePDFRawStream } from 'pd
 import { jsPDF } from 'jspdf';
 import type { SpatialWord } from './ocrEngine';
 import { findContextualPIIWordIndices, type PIIType } from './piiDetector';
+
+/**
+ * Thrown when a sensitive string is partially redacted (redacted in some places but left unredacted in others).
+ * Forcing Native PDF redaction in this state is insecure, as global removal would delete the unredacted instances.
+ */
+export class PartialRedactionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PartialRedactionError';
+  }
+}
+
 import type { DocumentType } from '~/composables/useDocumentIngestion';
 import type { DetectedRegion } from './faceDetector';
 
@@ -109,7 +121,136 @@ function releaseCanvas(canvas: HTMLCanvasElement): void {
 }
 
 /**
- * Scrubs sensitive text strings from raw PDF content streams.
+ * Scrubs sensitive text from a single decoded PDF content stream string.
+ *
+ * Real PDFs encode text in TJ arrays where a single word is split across
+ * multiple literal chunks interleaved with kerning numbers, e.g.:
+ *   [(2410)18(60500)18(48)] TJ  → visible text "24106050048"
+ *
+ * A naive text.includes("24106050048") will never match because the digits
+ * are never contiguous in the raw bytes. This function parses each TJ/Tj
+ * operator, reconstructs the full visible string from its literal chunks,
+ * finds sensitive tokens across chunk boundaries, and blanks only the
+ * matched characters while leaving kerning numbers and PDF syntax intact.
+ */
+function scrubContentStreamText(contentText: string, sensitiveTexts: string[]): { result: string; modified: boolean } {
+  let result = contentText;
+  let modified = false;
+
+  // --- Pass 1: TJ arrays  [ ... (chunk) kern (chunk) ... ] TJ ---
+  result = result.replace(/\[([^\]]*)\]\s*TJ/g, (fullMatch: string, arrayContent: string) => {
+    // Parse all literal string chunks inside the array
+    interface TJChunk { chars: string[]; startInArray: number; endInArray: number }
+    const chunks: TJChunk[] = [];
+    let i = 0;
+    while (i < arrayContent.length) {
+      if (arrayContent[i] === '(') {
+        const startInArray = i;
+        i++; // skip '('
+        const chars: string[] = [];
+        while (i < arrayContent.length) {
+          if (arrayContent[i] === '\\') {
+            // Escaped character — treat as single logical char
+            chars.push(arrayContent[i], arrayContent[i + 1] ?? '');
+            i += 2;
+          } else if (arrayContent[i] === ')') {
+            i++; // skip ')'
+            break;
+          } else {
+            chars.push(arrayContent[i++]);
+          }
+        }
+        chunks.push({ chars, startInArray, endInArray: i });
+      } else {
+        i++;
+      }
+    }
+
+    if (chunks.length === 0) return fullMatch;
+
+    // Build charMap: position in reconstructed string → [chunkIdx, charIdx]
+    const charMap: [number, number][] = [];
+    for (let ci = 0; ci < chunks.length; ci++) {
+      for (let ch = 0; ch < chunks[ci].chars.length; ch++) {
+        charMap.push([ci, ch]);
+      }
+    }
+
+    // Reconstruct visible text from all chunks — works for ASCII/latin1 text
+    const plainText = chunks.map(c => c.chars.join('')).join('');
+
+    let chunkModified = false;
+    for (const sensitive of sensitiveTexts) {
+      if (!sensitive) continue;
+      let pos = 0;
+      while (true) {
+        const idx = plainText.indexOf(sensitive, pos);
+        if (idx < 0) break;
+        for (let k = idx; k < idx + sensitive.length; k++) {
+          if (k >= charMap.length) break;
+          const [ci, ch] = charMap[k];
+          chunks[ci].chars[ch] = ' ';
+          chunkModified = true;
+        }
+        pos = idx + sensitive.length;
+      }
+    }
+
+    if (!chunkModified) return fullMatch;
+    modified = true;
+
+    // Rebuild the array content with blanked chunks
+    let newArray = '';
+    let lastEnd = 0;
+    for (const chunk of chunks) {
+      newArray += arrayContent.slice(lastEnd, chunk.startInArray);
+      newArray += '(' + chunk.chars.join('') + ')';
+      lastEnd = chunk.endInArray;
+    }
+    newArray += arrayContent.slice(lastEnd);
+    return '[' + newArray + '] TJ';
+  });
+
+  // --- Pass 2: simple Tj  (text) Tj ---
+  result = result.replace(/\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*Tj/g, (fullMatch: string, literal: string) => {
+    const chars = literal.split('');
+    let chunkModified = false;
+    for (const sensitive of sensitiveTexts) {
+      if (!sensitive) continue;
+      const text = chars.join('');
+      let pos = 0;
+      while (true) {
+        const idx = text.indexOf(sensitive, pos);
+        if (idx < 0) break;
+        for (let k = idx; k < idx + sensitive.length; k++) chars[k] = ' ';
+        chunkModified = true;
+        pos = idx + sensitive.length;
+      }
+    }
+    if (!chunkModified) return fullMatch;
+    modified = true;
+    return '(' + chars.join('') + ') Tj';
+  });
+
+  return { result, modified };
+}
+
+/**
+ * Encodes a latin1 JS string back to a Uint8Array (one byte per character).
+ * Must be used instead of TextEncoder (which uses UTF-8 and corrupts bytes > 127).
+ */
+function latin1Encode(str: string): Uint8Array {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    bytes[i] = str.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
+/**
+ * Scrubs sensitive text strings from raw PDF content streams by parsing
+ * TJ/Tj operators and blanking matched characters across kerning-split chunks.
+ * Also handles legacy literal and hex-encoded fallbacks for simple PDFs.
  */
 function scrubTextFromPdfDoc(pdfDoc: PDFDocument, sensitiveTexts: string[]) {
   const uniqueTexts = Array.from(
@@ -138,36 +279,41 @@ function scrubTextFromPdfDoc(pdfDoc: PDFDocument, sensitiveTexts: string[]) {
           } catch (_) {
             rawBytes = stream.getContents();
           }
+          // Decode as latin1: each byte → one JS character (code 0–255, bijective)
           let text = new TextDecoder('latin1').decode(rawBytes);
-          let modified = false;
 
+          // --- Primary: TJ-aware scrubber (handles kerning-split text) ---
+          const { result: tjResult, modified: tjModified } = scrubContentStreamText(text, uniqueTexts);
+          if (tjModified) {
+            text = tjResult;
+          }
+
+          // --- Fallback: plain literal and hex matches for non-TJ encoded content ---
+          let fallbackModified = false;
           for (const s of uniqueTexts) {
-            // Literal string replacement
             if (text.includes(s)) {
-              const replacement = ' '.repeat(s.length);
-              text = text.split(s).join(replacement);
-              modified = true;
+              text = text.split(s).join(' '.repeat(s.length));
+              fallbackModified = true;
             }
-
-            // Hex-encoded string replacement in PDF streams (e.g. <68656C6C6F>)
-            const hexS = Array.from(new TextEncoder().encode(s))
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join('');
+            // Hex-encoded strings like <4e494b3a> in streams
+            const hexS = Array.from(s).map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
             const hexUpper = hexS.toUpperCase();
             const hexLower = hexS.toLowerCase();
             const hexRep = '20'.repeat(s.length);
-
             if (text.includes(hexUpper)) {
               text = text.split(hexUpper).join(hexRep);
-              modified = true;
+              fallbackModified = true;
             } else if (text.includes(hexLower)) {
               text = text.split(hexLower).join(hexRep);
-              modified = true;
+              fallbackModified = true;
             }
           }
 
-          if (modified) {
-            const encoded = new TextEncoder().encode(text);
+          if (tjModified || fallbackModified) {
+            // CRITICAL: re-encode as latin1 (1 char → 1 byte), NOT UTF-8.
+            // TextEncoder uses UTF-8 and corrupts bytes 128–255 which are
+            // common in PDF binary content streams (font refs, operators etc.).
+            const encoded = latin1Encode(text);
             const newStream = pdfDoc.context.flateStream(encoded);
             pdfDoc.context.assign(ref, newStream);
           }
@@ -177,9 +323,10 @@ function scrubTextFromPdfDoc(pdfDoc: PDFDocument, sensitiveTexts: string[]) {
   }
 }
 
+
 /**
  * Redacts a text-based PDF while keeping it as a true vector PDF (no rasterization to image).
- * 1. Scrubs sensitive text literals from binary content streams.
+ * 1. Scrubs sensitive text literals from binary content streams (TJ-aware, handles kerning arrays).
  * 2. Draws solid blocker rectangles in front of the redacted text positions.
  */
 export async function redactNativePdfText(
@@ -269,10 +416,20 @@ export async function redactNativePdfText(
       .filter((t) => t.length > 0)
   );
 
+  // Remove the >= 3 length filter — short tokens like "51", "01" are legitimate PII digits
   const safeStringsToScrub = sensitiveStringsToScrub.filter((t) => {
     const trimmed = t.trim();
-    return trimmed.length >= 3 && !unredactedWordTexts.has(trimmed.toLowerCase());
+    return trimmed.length >= 1 && !unredactedWordTexts.has(trimmed.toLowerCase());
   });
+
+  const unsafeStrings = sensitiveStringsToScrub.filter((t) => {
+    const trimmed = t.trim();
+    return trimmed.length >= 1 && unredactedWordTexts.has(trimmed.toLowerCase());
+  });
+
+  if (unsafeStrings.length > 0) {
+    throw new PartialRedactionError('Unredacted duplicates found for sensitive text');
+  }
 
   if (safeStringsToScrub.length > 0) {
     scrubTextFromPdfDoc(pdfDoc, safeStringsToScrub);
@@ -282,6 +439,7 @@ export async function redactNativePdfText(
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   return new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 }
+
 
 /**
  * Image redaction (pixel-level destructive overwrite with smart compression).

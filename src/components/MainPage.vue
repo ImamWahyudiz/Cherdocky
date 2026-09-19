@@ -6,6 +6,7 @@ import {
   redactPdf,
   exportImagesAsMergedPdf,
   createZipBlob,
+  PartialRedactionError,
   type QualityPreset,
 } from '~/utils/redactor';
 import type { PIIType } from '~/utils/piiDetector';
@@ -288,16 +289,37 @@ const executeDirectRedaction = async (
   try {
     if (documentType.value === 'text-pdf' || documentType.value === 'image-pdf') {
       if (!file.value) return;
-      const redactedBlob = await redactPdf(
-        file.value,
-        result.value,
-        activePiiTypes.value,
-        documentType.value,
-        customPiiText.value,
-        redactionRegions.value,
-        selectedRedactionColor.value,
-        qualityPreset
-      );
+      
+      let redactedBlob: Blob;
+      try {
+        redactedBlob = await redactPdf(
+          file.value,
+          result.value,
+          activePiiTypes.value,
+          documentType.value,
+          customPiiText.value,
+          redactionRegions.value,
+          selectedRedactionColor.value,
+          qualityPreset
+        );
+      } catch (err) {
+        if (err instanceof PartialRedactionError) {
+          window.alert("Keamanan terancam: Beberapa teks yang sama tidak disensor. Untuk keamanan 100%, dokumen akan diproses sebagai Gambar (Rasterize).");
+          // Fallback: force rasterization
+          redactedBlob = await redactPdf(
+            file.value,
+            result.value,
+            activePiiTypes.value,
+            'image-pdf',
+            customPiiText.value,
+            redactionRegions.value,
+            selectedRedactionColor.value,
+            qualityPreset
+          );
+        } else {
+          throw err;
+        }
+      }
 
       const fname = customFilename || 'redacted-pdf.pdf';
       exportedBlob.value = redactedBlob;

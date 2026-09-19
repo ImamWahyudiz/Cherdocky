@@ -150,20 +150,16 @@ describe('redactNativePdfText', () => {
       },
     ];
 
-    const redactedBlob = await redactNativePdfText(
-      new Blob([pdfBytes], { type: 'application/pdf' }),
-      words,
-      [],
-      undefined,
-      [],
-      '#000000'
-    );
+    await expect(
+      redactNativePdfText(
+        new Blob([pdfBytes], { type: 'application/pdf' }),
+        words,
+        [],
+        undefined,
+        [],
+        '#000000'
+      )
+    ).rejects.toThrow('Unredacted duplicates found for sensitive text');
 
-    const redactedArrayBuffer = await redactedBlob.arrayBuffer();
-    const resultDoc = await PDFDocument.load(redactedArrayBuffer);
-    const rawText = extractAllPageStreamTexts(resultDoc);
-
-    // Because Jakarta is kept in word 2, it must not be blindly scrubbed from the stream
-    expect(rawText).toContain('Jakarta');
   });
 });
